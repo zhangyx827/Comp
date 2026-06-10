@@ -1,0 +1,186 @@
+{
+  "timestamp": 1781013301.5562205,
+  "test_results": [
+    {
+      "name": "基础测试",
+      "status": "✓ PASS",
+      "time": 0.0006256103515625,
+      "tokens": 21,
+      "asm_lines": 22,
+      "symbols": 1,
+      "success": true
+    },
+    {
+      "name": "条件语句",
+      "status": "✓ PASS",
+      "time": 0.00018167495727539062,
+      "tokens": 28,
+      "asm_lines": 30,
+      "symbols": 1,
+      "success": true
+    },
+    {
+      "name": "循环语句",
+      "status": "✓ PASS",
+      "time": 0.00021505355834960938,
+      "tokens": 37,
+      "asm_lines": 41,
+      "symbols": 1,
+      "success": true
+    },
+    {
+      "name": "函数调用",
+      "status": "✓ PASS",
+      "time": 0.00016546249389648438,
+      "tokens": 30,
+      "asm_lines": 33,
+      "symbols": 2,
+      "success": true
+    },
+    {
+      "name": "数组操作",
+      "status": "✓ PASS",
+      "time": 0.00019979476928710938,
+      "tokens": 37,
+      "asm_lines": 50,
+      "symbols": 1,
+      "success": true
+    },
+    {
+      "name": "指针操作",
+      "status": "✓ PASS",
+      "time": 0.00016951560974121094,
+      "tokens": 22,
+      "asm_lines": 19,
+      "symbols": 1,
+      "success": true
+    },
+    {
+      "name": "复杂表达式",
+      "status": "✓ PASS",
+      "time": 0.0003333091735839844,
+      "tokens": 41,
+      "asm_lines": 46,
+      "symbols": 1,
+      "success": true
+    },
+    {
+      "name": "递归函数",
+      "status": "✓ PASS",
+      "time": 0.00024127960205078125,
+      "tokens": 39,
+      "asm_lines": 52,
+      "symbols": 2,
+      "success": true
+    },
+    {
+      "name": "嵌套条件",
+      "status": "✓ PASS",
+      "time": 0.00045800209045410156,
+      "tokens": 56,
+      "asm_lines": 62,
+      "symbols": 1,
+      "success": true
+    },
+    {
+      "name": "字符串模拟",
+      "status": "✓ PASS",
+      "time": 0.0006277561187744141,
+      "tokens": 53,
+      "asm_lines": 70,
+      "symbols": 1,
+      "success": true
+    }
+  ],
+  "example_results": [
+    {
+      "file": "00_test.c",
+      "status": "✓",
+      "time": 0.00016379356384277344,
+      "tokens": 21,
+      "asm_lines": 22,
+      "success": true
+    },
+    {
+      "file": "01_math.c",
+      "status": "✓",
+      "time": 0.00016832351684570312,
+      "tokens": 28,
+      "asm_lines": 28,
+      "success": true
+    },
+    {
+      "file": "02_loop.c",
+      "status": "✓",
+      "time": 0.0002799034118652344,
+      "tokens": 47,
+      "asm_lines": 57,
+      "success": true
+    },
+    {
+      "file": "03_func.c",
+      "status": "✓",
+      "time": 0.00024366378784179688,
+      "tokens": 45,
+      "asm_lines": 39,
+      "success": true
+    },
+    {
+      "file": "04_fibonacci.c",
+      "status": "✓",
+      "time": 0.0003020763397216797,
+      "tokens": 56,
+      "asm_lines": 63,
+      "success": true
+    },
+    {
+      "file": "05_primes.c",
+      "status": "✓",
+      "time": 0.0007126331329345703,
+      "tokens": 103,
+      "asm_lines": 109,
+      "success": true
+    },
+    {
+      "file": "06_array.c",
+      "status": "✓",
+      "time": 0.0003619194030761719,
+      "tokens": 47,
+      "asm_lines": 66,
+      "success": true
+    },
+    {
+      "file": "07_pointer.c",
+      "status": "✓",
+      "time": 0.00017690658569335938,
+      "tokens": 22,
+      "asm_lines": 19,
+      "success": true
+    },
+    {
+      "file": "08_complex_ptr.c",
+      "status": "✓",
+      "time": 0.0003123283386230469,
+      "tokens": 60,
+      "asm_lines": 70,
+      "success": true
+    },
+    {
+      "file": "09_complex_sort.c",
+      "status": "✓",
+      "time": 0.0024313926696777344,
+      "tokens": 463,
+      "asm_lines": 456,
+      "success": true
+    }
+  ],
+  "summary": {
+    "total_tests": 10,
+    "passed": 10,
+    "failed": 0,
+    "example_files": 10,
+    "example_passed": 10,
+    "total_time": 0.003217458724975586,
+    "avg_time": 0.0003217458724975586
+  }
+}
