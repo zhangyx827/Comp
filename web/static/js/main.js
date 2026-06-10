@@ -204,7 +204,7 @@ int main() {
                 activateStage('tac');
                 if (result.tac_result) {
                     setStageStatus('tac', 'success');
-                    displayTacResult(result.tac_result);
+                    displayTacResult(result.tac_result, result.original_tac_result, result.optimization_result);
                     document.getElementById('stat-tac-lines').textContent = result.tac_result.lines;
                 }
             }, 600);
@@ -374,11 +374,41 @@ int main() {
             container.innerHTML = html;
         }
 
-        function displayTacResult(result) {
+        function displayTacResult(result, originalResult, optimizationResult) {
             const container = document.getElementById('content-tac');
-            const lines = result.text.split('\n');
+            const originalLines = originalResult && originalResult.text
+                ? originalResult.text.split('\n')
+                : [];
+            const optimizedLines = result.text ? result.text.split('\n') : [];
+            const savedLines = originalResult ? originalResult.lines - result.lines : 0;
 
-            let html = '<div class="assembly-code">';
+            let html = '<div class="tac-summary">';
+            if (originalResult) {
+                html += `<span>优化前 ${originalResult.lines} 行</span>`;
+                html += `<span>优化后 ${result.lines} 行</span>`;
+                html += `<span>${savedLines >= 0 ? '减少' : '增加'} ${Math.abs(savedLines)} 行</span>`;
+            } else {
+                html += `<span>优化后 ${result.lines} 行</span>`;
+            }
+            if (optimizationResult && optimizationResult.applied && optimizationResult.applied.length > 0) {
+                html += `<span>优化 ${optimizationResult.applied.length} 项</span>`;
+            }
+            html += '</div>';
+
+            if (originalResult) {
+                html += '<div class="tac-compare">';
+                html += renderTacPanel('优化前 TAC', originalLines);
+                html += renderTacPanel('优化后 TAC', optimizedLines);
+                html += '</div>';
+            } else {
+                html += renderTacPanel('TAC', optimizedLines);
+            }
+
+            container.innerHTML = html;
+        }
+
+        function renderTacPanel(title, lines) {
+            let html = `<div class="tac-panel"><div class="tac-panel-title">${escapeHtml(title)}</div><div class="assembly-code">`;
             lines.forEach(line => {
                 const trimmed = line.trim();
                 if (trimmed.endsWith(':')) {
@@ -391,9 +421,8 @@ int main() {
                     html += '<div class="assembly-line">&nbsp;</div>';
                 }
             });
-            html += '</div>';
-
-            container.innerHTML = html;
+            html += '</div></div>';
+            return html;
         }
 
         function displayErrors(errors) {
@@ -460,9 +489,16 @@ int main() {
                         {name: 'main', type: 'function', return_type: 'int'}
                     ]
                 },
+                original_tac_result: {
+                    text: `function add:\nparam a\nparam b\nt1 = a + b\nsum = t1\nreturn sum\nend function add`,
+                    lines: 7
+                },
                 tac_result: {
                     text: `function add:\nparam a\nparam b\nt1 = a + b\nreturn t1\nend function add`,
                     lines: 6
+                },
+                optimization_result: {
+                    applied: ['dead code elimination']
                 },
                 code_result: {
                     assembly: `.text\n.global main\nadd:\n    push rbp\n    mov rbp, rsp\n    ret`,

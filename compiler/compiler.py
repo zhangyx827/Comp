@@ -2,7 +2,7 @@ from typing import Dict, Any
 from .lexer import EnhancedLexer
 from .parser import EnhancedParser
 from .semantic import EnhancedSemanticAnalyzer
-from .optimizer import Optimizer
+from .optimizer import Optimizer, TACOptimizer
 from .tac import TACAssemblyGenerator, TACGenerator, TACRiscVAssemblyGenerator
 
 CODE_GENERATORS = {
@@ -18,6 +18,7 @@ class Compiler:
         self.parser = None
         self.semantic_analyzer = None
         self.optimizer = None
+        self.tac_optimizer = None
         self.code_generator = None
     
     def compile(self, source_code: str, target: str = 'x86_64') -> Dict[str, Any]:
@@ -34,6 +35,7 @@ class Compiler:
             'parser_result': None,
             'semantic_result': None,
             'optimization_result': None,
+            'original_tac_result': None,
             'tac_result': None,
             'code_result': None,
             'errors': [],
@@ -84,16 +86,31 @@ class Compiler:
                 # TAC 生成
                 self.tac_generator = TACGenerator()
                 tac_instructions = self.tac_generator.generate(optimized_ast)
-                tac_text = '\n'.join(str(instruction) for instruction in tac_instructions)
-                result['tac_result'] = {
+                original_tac_text = '\n'.join(str(instruction) for instruction in tac_instructions)
+                result['original_tac_result'] = {
                     'instructions': [instruction.to_dict() for instruction in tac_instructions],
-                    'text': tac_text,
+                    'text': original_tac_text,
                     'lines': len(tac_instructions)
+                }
+
+                # TAC 中间代码优化
+                self.tac_optimizer = TACOptimizer()
+                optimized_tac_instructions = self.tac_optimizer.optimize(tac_instructions)
+                result['optimization_result']['applied'].extend(
+                    self.tac_optimizer.optimizations_applied
+                )
+                tac_text = '\n'.join(str(instruction) for instruction in optimized_tac_instructions)
+                result['tac_result'] = {
+                    'instructions': [instruction.to_dict() for instruction in optimized_tac_instructions],
+                    'text': tac_text,
+                    'lines': len(optimized_tac_instructions),
+                    'original_lines': len(tac_instructions),
+                    'optimized': True
                 }
 
                 # 汇编代码生成
                 self.code_generator = CODE_GENERATORS[target]()
-                assembly_code = self.code_generator.generate(tac_instructions)
+                assembly_code = self.code_generator.generate(optimized_tac_instructions)
                 result['code_result'] = {
                     'target': target,
                     'assembly': assembly_code,
