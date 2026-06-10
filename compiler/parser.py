@@ -210,6 +210,7 @@ class EnhancedParser:
         body = self.block()
         
         children = []
+        value = {'has_init': init is not None, 'has_condition': condition is not None, 'has_increment': increment is not None}
         if init:
             children.append(init)
         if condition:
@@ -218,7 +219,7 @@ class EnhancedParser:
             children.append(increment)
         children.append(body)
         
-        return ASTNode('for_statement', children, line=line, column=col)
+        return ASTNode('for_statement', children, value, line, col)
     
     def return_statement(self) -> ASTNode:
         line, col = self.current_token.line, self.current_token.column
@@ -466,4 +467,3 @@ class EnhancedParser:
             return expr
         else:
             raise SyntaxError(f"意外的token: {self.current_token.type}", line, col)
-

@@ -23,8 +23,9 @@ def compile_code():
     try:
         data = request.get_json()
         code = data.get('code', '')
+        target = data.get('target', 'x86_64')
         
-        result = compiler.compile(code)
+        result = compiler.compile(code, target=target)
         return jsonify(result)
     
     except Exception as e:

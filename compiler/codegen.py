@@ -133,10 +133,14 @@ class EnhancedCodeGenerator:
         self.emit(f'{end_label}:')
     
     def visit_for_statement(self, node: ASTNode):
-        init = node.children[0] if len(node.children) > 0 else None
-        condition = node.children[1] if len(node.children) > 1 else None
-        increment = node.children[2] if len(node.children) > 2 else None
-        body = node.children[3] if len(node.children) > 3 else node.children[-1]
+        index = 0
+        init = node.children[index] if node.value and node.value.get('has_init') else None
+        index += 1 if init is not None else 0
+        condition = node.children[index] if node.value and node.value.get('has_condition') else None
+        index += 1 if condition is not None else 0
+        increment = node.children[index] if node.value and node.value.get('has_increment') else None
+        index += 1 if increment is not None else 0
+        body = node.children[index] if index < len(node.children) else node.children[-1]
         
         if init:
             self.visit(init)
@@ -342,4 +346,3 @@ class EnhancedCodeGenerator:
     
     def visit_boolean_literal(self, node: ASTNode):
         self.emit(f'mov rax, {"1" if node.value["value"] else "0"}')
-

@@ -1,6 +1,6 @@
 # 自定义编译器及可视化平台
 
-一个类似简单 C 语言的完整编译器，从词法分析到 x86 汇编生成，并提供 Web 可视化界面。
+一个类似简单 C 语言的完整编译器，从词法分析、TAC 中间表示到多目标汇编生成，并提供 Web 可视化界面。
 
 ---
 
@@ -11,7 +11,8 @@
 - **语法分析**：递归下降解析，生成抽象语法树（AST）
 - **语义分析**：符号表管理、作用域控制、类型检查
 - **代码优化**：常量折叠（Constant Folding）
-- **代码生成**：生成 Intel 语法 x86 汇编代码
+- **TAC 中间表示**：将 AST 降低为目标无关的三地址码
+- **代码生成**：支持 Intel 语法 x86-64 汇编和 RISC-V 64 汇编
 
 ### Web 可视化平台
 - **代码编辑器**：CodeMirror 集成，支持语法高亮
@@ -30,7 +31,8 @@
 │   ├── parser.py         # 语法分析器（递归下降）
 │   ├── semantic.py       # 语义分析器（符号表、类型检查）
 │   ├── optimizer.py      # 代码优化器（常量折叠）
-│   ├── codegen.py        # x86 汇编代码生成器
+│   ├── codegen.py        # 旧版 AST 到 x86 汇编代码生成器
+│   ├── tac.py            # TAC 生成器与多目标汇编后端
 │   ├── compiler.py       # Compiler 主控类，串联流水线
 │   └── __init__.py       # 模块入口
 ├── web/                   # Web 可视化平台
@@ -94,8 +96,11 @@ python main.py --web --port 8888
 
 ### 方式二：命令行编译
 ```bash
-# 编译单个文件并输出汇编
+# 编译单个文件并输出 x86-64 汇编
 python main.py examples/00_test.c
+
+# 编译单个文件并输出 RISC-V 64 汇编
+python main.py examples/00_test.c --target riscv64
 ```
 
 ### 运行测试

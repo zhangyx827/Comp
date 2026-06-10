@@ -3,7 +3,12 @@ from .lexer import EnhancedLexer
 from .parser import EnhancedParser
 from .semantic import EnhancedSemanticAnalyzer
 from .optimizer import Optimizer
-from .codegen import EnhancedCodeGenerator
+from .tac import TACAssemblyGenerator, TACGenerator, TACRiscVAssemblyGenerator
+
+CODE_GENERATORS = {
+    'x86_64': TACAssemblyGenerator,
+    'riscv64': TACRiscVAssemblyGenerator,
+}
 
 class Compiler:
     """编译器主类"""
@@ -15,15 +20,21 @@ class Compiler:
         self.optimizer = None
         self.code_generator = None
     
-    def compile(self, source_code: str) -> Dict[str, Any]:
+    def compile(self, source_code: str, target: str = 'x86_64') -> Dict[str, Any]:
         """编译源代码"""
+        if target not in CODE_GENERATORS:
+            target = 'x86_64'
+
         result = {
             'success': True,
+            'target': target,
+            'available_targets': list(CODE_GENERATORS.keys()),
             'source_code': source_code,
             'lexer_result': None,
             'parser_result': None,
             'semantic_result': None,
             'optimization_result': None,
+            'tac_result': None,
             'code_result': None,
             'errors': [],
             'warnings': []
@@ -70,10 +81,21 @@ class Compiler:
                     'optimized_ast': optimized_ast.to_dict()
                 }
                 
-                # 代码生成
-                self.code_generator = EnhancedCodeGenerator()
-                assembly_code = self.code_generator.generate(optimized_ast)
+                # TAC 生成
+                self.tac_generator = TACGenerator()
+                tac_instructions = self.tac_generator.generate(optimized_ast)
+                tac_text = '\n'.join(str(instruction) for instruction in tac_instructions)
+                result['tac_result'] = {
+                    'instructions': [instruction.to_dict() for instruction in tac_instructions],
+                    'text': tac_text,
+                    'lines': len(tac_instructions)
+                }
+
+                # 汇编代码生成
+                self.code_generator = CODE_GENERATORS[target]()
+                assembly_code = self.code_generator.generate(tac_instructions)
                 result['code_result'] = {
+                    'target': target,
                     'assembly': assembly_code,
                     'lines': len(assembly_code.split('\n'))
                 }

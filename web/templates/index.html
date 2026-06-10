@@ -36,6 +36,10 @@
                     <div class="stat-value" id="stat-lines">0</div>
                     <div class="stat-label">ASM Lines</div>
                 </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="stat-tac-lines">0</div>
+                    <div class="stat-label">TAC Lines</div>
+                </div>
             </div>
         </div>
     </header>
@@ -46,6 +50,10 @@
             <div class="editor-header">
                 <h2 class="editor-title">源代码编辑器</h2>
                 <div style="display: flex; gap: 1rem; align-items: center;">
+                    <select id="target-select" style="background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color); padding: 0.75rem 1rem; border-radius: 8px; outline: none; font-family: inherit; font-size: 1rem;">
+                        <option value="x86_64">x86-64</option>
+                        <option value="riscv64">RISC-V 64</option>
+                    </select>
                     <select id="example-select" onchange="loadExample()" style="background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color); padding: 0.75rem 1rem; border-radius: 8px; outline: none; font-family: inherit; font-size: 1rem;">
                         <option value="complex">示例: 综合程序</option>
                         <option value="math">示例: 基础运算</option>
@@ -134,6 +142,22 @@
             </div>
 
             <!-- Code Generation -->
+            <div class="pipeline-stage" id="stage-tac">
+                <div class="stage-header">
+                    <h3 class="stage-title">
+                        <span class="stage-icon">🔁</span>
+                        三地址码 TAC
+                    </h3>
+                    <div class="stage-status" id="status-tac"></div>
+                </div>
+                <div class="stage-content" id="content-tac">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🧾</div>
+                        <p>AST 降低后的 TAC 将显示在这里</p>
+                    </div>
+                </div>
+            </div>
+
             <div class="pipeline-stage" id="stage-code">
                 <div class="stage-header">
                     <h3 class="stage-title">

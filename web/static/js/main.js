@@ -125,6 +125,7 @@ int main() {
         // Compile function
         async function compileCode() {
             const code = editor.getValue();
+            const target = document.getElementById('target-select').value;
             
             // Reset status
             resetPipeline();
@@ -136,7 +137,7 @@ int main() {
                 const response = await fetch('/compile', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ code })
+                    body: JSON.stringify({ code, target })
                 });
                 
                 const result = await response.json();
@@ -149,7 +150,7 @@ int main() {
         }
 
         function resetPipeline() {
-            ['lexer', 'parser', 'semantic', 'code'].forEach(stage => {
+            ['lexer', 'parser', 'semantic', 'tac', 'code'].forEach(stage => {
                 document.getElementById(`status-${stage}`).className = 'stage-status';
                 document.getElementById(`stage-${stage}`).classList.remove('active');
             });
@@ -198,6 +199,16 @@ int main() {
                 }
             }, 400);
             
+            // TAC Generation
+            setTimeout(() => {
+                activateStage('tac');
+                if (result.tac_result) {
+                    setStageStatus('tac', 'success');
+                    displayTacResult(result.tac_result);
+                    document.getElementById('stat-tac-lines').textContent = result.tac_result.lines;
+                }
+            }, 600);
+
             // Code Generation
             setTimeout(() => {
                 activateStage('code');
@@ -206,7 +217,7 @@ int main() {
                     displayCodeResult(result.code_result);
                     document.getElementById('stat-lines').textContent = result.code_result.lines;
                 }
-            }, 600);
+            }, 800);
             
             // Errors
             if (result.errors && result.errors.length > 0) {
@@ -341,7 +352,8 @@ int main() {
             const container = document.getElementById('content-code');
             const lines = result.assembly.split('\n');
             
-            let html = '<div class="assembly-code">';
+            let html = `<div style="margin-bottom: 0.75rem; color: var(--text-secondary); font-size: 0.9rem;">Target: ${escapeHtml(result.target || 'x86_64')}</div>`;
+            html += '<div class="assembly-code">';
             lines.forEach(line => {
                 const trimmed = line.trim();
                 if (trimmed.endsWith(':')) {
@@ -359,6 +371,28 @@ int main() {
             });
             html += '</div>';
             
+            container.innerHTML = html;
+        }
+
+        function displayTacResult(result) {
+            const container = document.getElementById('content-tac');
+            const lines = result.text.split('\n');
+
+            let html = '<div class="assembly-code">';
+            lines.forEach(line => {
+                const trimmed = line.trim();
+                if (trimmed.endsWith(':')) {
+                    html += `<div class="assembly-line"><span class="assembly-label">${escapeHtml(trimmed)}</span></div>`;
+                } else if (trimmed.startsWith('function') || trimmed.startsWith('end function')) {
+                    html += `<div class="assembly-line"><span class="assembly-comment">${escapeHtml(trimmed)}</span></div>`;
+                } else if (trimmed) {
+                    html += `<div class="assembly-line"><span class="assembly-instruction">${escapeHtml(trimmed)}</span></div>`;
+                } else {
+                    html += '<div class="assembly-line">&nbsp;</div>';
+                }
+            });
+            html += '</div>';
+
             container.innerHTML = html;
         }
 
@@ -425,6 +459,10 @@ int main() {
                         {name: 'add', type: 'function', return_type: 'int'},
                         {name: 'main', type: 'function', return_type: 'int'}
                     ]
+                },
+                tac_result: {
+                    text: `function add:\nparam a\nparam b\nt1 = a + b\nreturn t1\nend function add`,
+                    lines: 6
                 },
                 code_result: {
                     assembly: `.text\n.global main\nadd:\n    push rbp\n    mov rbp, rsp\n    ret`,

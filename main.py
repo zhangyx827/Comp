@@ -10,6 +10,8 @@ def main():
     parser.add_argument('file', nargs='?', help='要编译的源代码文件路径')
     parser.add_argument('--web', action='store_true', help='启动 Web 可视化服务器')
     parser.add_argument('--port', type=int, default=8888, help='Web 服务器端口 (默认: 8888)')
+    parser.add_argument('--target', choices=['x86_64', 'riscv64'], default='x86_64',
+                        help='代码生成目标架构 (默认: x86_64)')
     
     args = parser.parse_args()
     
@@ -25,12 +27,15 @@ def main():
             source_code = f.read()
             
         compiler = Compiler()
-        result = compiler.compile(source_code)
+        result = compiler.compile(source_code, target=args.target)
         
         print("=== 编译结果 ===")
         print(f"成功: {result['success']}")
         
         if result['success']:
+            print(f"\n>>> 目标架构: {result['target']} <<<")
+            print("\n>>> 生成的 TAC <<<\n")
+            print(result['tac_result']['text'])
             print("\n>>> 生成的汇编代码 <<<\n")
             print(result['code_result']['assembly'])
             print("\n>>> 符号表 <<<\n")
