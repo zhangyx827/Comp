@@ -306,6 +306,120 @@
         }
 
         /* Token List */
+        .token-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .token-table-wrap {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .token-table-summary {
+            color: var(--text-tertiary);
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .token-dropdown {
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.02);
+            overflow: hidden;
+        }
+
+        .token-dropdown[open] {
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+        }
+
+        .token-dropdown-summary {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            list-style: none;
+            cursor: pointer;
+            padding: 0.9rem 1rem;
+            color: var(--text-primary);
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.03);
+            user-select: none;
+        }
+
+        .token-dropdown-summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .token-dropdown-summary::after {
+            content: '⌄';
+            color: var(--text-tertiary);
+            font-size: 1.1rem;
+            transition: transform 0.2s ease;
+        }
+
+        .token-dropdown[open] .token-dropdown-summary::after {
+            transform: rotate(180deg);
+        }
+
+        .token-dropdown-hint {
+            color: var(--text-tertiary);
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .token-table-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .token-table-scroll {
+            max-height: 420px;
+            overflow-x: auto;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 0 0 14px 14px;
+            border-top: none;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .token-table {
+            width: 100%;
+            min-width: 680px;
+            border-collapse: collapse;
+        }
+
+        .token-table th,
+        .token-table td {
+            padding: 0.9rem 1rem;
+            border-bottom: 1px solid rgba(45, 45, 61, 0.9);
+            text-align: left;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.92rem;
+        }
+
+        .token-table th {
+            color: var(--text-secondary);
+            background: rgba(18, 18, 26, 0.95);
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .token-table tbody tr:hover {
+            background: rgba(99, 102, 241, 0.08);
+        }
+
+        .token-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
         .token-item {
             background: var(--bg-secondary);
             padding: 0.75rem;

@@ -241,23 +241,50 @@ int main() {
 
         function displayLexerResult(result) {
             const container = document.getElementById('content-lexer');
-            let html = '<div class="token-list">';
-            
-            result.tokens.slice(0, 50).forEach(token => {
+            const totalTokens = result.tokens.length;
+            const previewCount = Math.min(totalTokens, 12);
+            let html = `
+                <div class="token-table-wrap">
+                    <div class="token-table-title">Token 表</div>
+                    <div class="token-table-summary">共 ${totalTokens} 个 tokens`;
+            if (totalTokens > previewCount) {
+                html += `，默认展示前 ${previewCount} 个，展开可查看全部`;
+            }
+            html += `</div>
+                    <details class="token-dropdown">
+                        <summary class="token-dropdown-summary">
+                            <span>查看完整 Token 表</span>
+                            <span class="token-dropdown-hint">${totalTokens} 个 tokens</span>
+                        </summary>
+                        <div class="token-table-scroll">
+                            <table class="token-table">
+                                <thead>
+                                    <tr>
+                                        <th>类型</th>
+                                        <th>值</th>
+                                        <th>行</th>
+                                        <th>列</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+            `;
+
+            result.tokens.forEach(token => {
                 html += `
-                    <div class="token-item slide-in">
-                        <span class="token-type">${token.type}</span>
-                        <span class="token-value">${escapeHtml(token.value)}</span>
-                        <span class="token-location">行${token.line}:${token.column}</span>
-                    </div>
+                    <tr class="token-row slide-in">
+                        <td><span class="token-type">${escapeHtml(token.type)}</span></td>
+                        <td class="token-value">${escapeHtml(token.value)}</td>
+                        <td class="token-location">${token.line ?? '-'}</td>
+                        <td class="token-location">${token.column ?? '-'}</td>
+                    </tr>
                 `;
             });
-            
-            if (result.tokens.length > 50) {
-                html += `<p style="text-align: center; color: var(--text-tertiary); padding: 1rem;">... 还有 ${result.tokens.length - 50} 个 tokens</p>`;
-            }
-            
-            html += '</div>';
+            html += `
+                                </tbody>
+                            </table>
+                        </div>
+                    </details>
+                </div>`;
             container.innerHTML = html;
         }
 
