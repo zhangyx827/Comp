@@ -263,18 +263,36 @@ int main() {
 
         function displayParserResult(ast) {
             const container = document.getElementById('content-parser');
-            container.innerHTML = '<div class="ast-container"><div class="ast-tree">' + renderAST(ast) + '</div></div>';
+            container.innerHTML = `
+                <div class="ast-container">
+                    <div class="ast-toolbar">
+                        <div class="ast-toolbar-item">根节点: ${escapeHtml(ast?.type || 'unknown')}</div>
+                        <div class="ast-toolbar-item">节点数: ${countASTNodes(ast)}</div>
+                        <button class="ast-toggle-btn" id="ast-toggle-all-btn" type="button">全部展开</button>
+                    </div>
+                    <div class="ast-breadcrumb" id="ast-breadcrumb">
+                        <span class="ast-breadcrumb-label">层级路径</span>
+                        <div class="ast-breadcrumb-trail">点击节点查看路径</div>
+                    </div>
+                    <div class="ast-tree" id="ast-tree-root">${renderAST(ast)}</div>
+                </div>
+            `;
+
+            const toggleBtn = document.getElementById('ast-toggle-all-btn');
+            if (toggleBtn) {
+                toggleBtn.addEventListener('click', () => toggleAllASTNodes());
+            }
+            bindASTInteractions();
         }
 
-        function renderAST(node, depth = 0) {
+        function renderAST(node, depth = 0, path = [], siblingIndex = 0, siblingCount = 1) {
             if (!node) return '';
-            
-            // 节点类型颜色映射
             const typeColors = {
                 'program': '#6366f1',
                 'function_declaration': '#8b5cf6',
                 'block': '#64748b',
                 'variable_declaration': '#10b981',
+                'variable_declarations': '#14b8a6',
                 'identifier': '#f59e0b',
                 'integer_literal': '#ef4444',
                 'float_literal': '#f97316',
@@ -296,41 +314,150 @@ int main() {
                 'address_of': '#84cc16',
                 'expression_statement': '#64748b'
             };
-            
+
             const color = typeColors[node.type] || '#94a3b8';
-            const bgColor = color + '20'; // 20% opacity
-            
-            let html = `<div class="ast-node" style="margin-left: ${depth * 20}px; border-left: 3px solid ${color};">
-                <div class="ast-node-content" style="background: ${bgColor}; border: 1px solid ${color}40;">
-                    <div class="ast-node-type" style="color: ${color};">${node.type}</div>`;
-            
-            if (node.value) {
-                if (typeof node.value === 'object') {
-                    const valueStr = Object.entries(node.value)
-                        .map(([k, v]) => `<span style="color: ${color};">${k}</span>: ${JSON.stringify(v)}`)
-                        .join(', ');
-                    html += `<div class="ast-node-value">{${valueStr}}</div>`;
-                } else {
-                    html += `<div class="ast-node-value">${JSON.stringify(node.value)}</div>`;
-                }
-            }
-            
-            html += `<div class="ast-node-line">行 ${node.line || '?'} 列 ${node.column || '?'}</div>`;
-            html += '</div>';
-            
-            if (node.children && node.children.length > 0) {
+            const hasChildren = Array.isArray(node.children) && node.children.length > 0;
+            const valueHtml = formatASTValue(node.value, color);
+            const meta = [];
+            if (node.line) meta.push(`行 ${node.line}`);
+            if (node.column) meta.push(`列 ${node.column}`);
+            const nodePath = [...path, siblingIndex];
+            const breadcrumbLabel = formatASTBreadcrumbLabel(node);
+
+            let html = `
+                <div class="ast-node" data-depth="${depth}" data-path="${nodePath.join('/')}" data-label="${escapeHtml(breadcrumbLabel)}">
+                    <div class="ast-node-branch">
+                        <div class="ast-node-content" style="--ast-accent: ${color};">
+                            <div class="ast-node-top">
+                                <button class="ast-node-toggle ${hasChildren ? '' : 'is-empty'}" type="button" ${hasChildren ? '' : 'disabled'} aria-label="切换节点">
+                                    ${hasChildren ? '▾' : '•'}
+                                </button>
+                                <div class="ast-node-main">
+                                    <div class="ast-node-type">${escapeHtml(node.type)}</div>
+                                    ${valueHtml}
+                                    <div class="ast-node-line">${meta.join(' · ') || '行 ? · 列 ?'}</div>
+                                </div>
+                                <div class="ast-node-badge">${hasChildren ? `${node.children.length} 子节点` : '叶子'}</div>
+                            </div>
+                        </div>`;
+
+            if (hasChildren) {
                 html += '<div class="ast-children">';
                 node.children.forEach((child, index) => {
-                    html += `<div style="position: relative; padding-left: 10px;">`;
-                    html += `<div style="position: absolute; left: 0; top: 0; width: 10px; height: 100%; border-left: 1px dashed #475569; border-bottom: 1px dashed #475569;"></div>`;
-                    html += renderAST(child, 0);
-                    html += '</div>';
+                    html += renderAST(child, depth + 1, nodePath, index, node.children.length);
                 });
                 html += '</div>';
             }
-            
-            html += '</div>';
+
+            html += '</div></div>';
             return html;
+        }
+
+        function formatASTBreadcrumbLabel(node) {
+            if (!node) return 'unknown';
+            if (node.value === null || node.value === undefined || node.value === '') {
+                return node.type;
+            }
+            if (typeof node.value === 'object') {
+                return `${node.type}`;
+            }
+            return `${node.type}: ${String(node.value)}`;
+        }
+
+        function formatASTValue(value, color) {
+            if (value === null || value === undefined) return '';
+            if (typeof value === 'object') {
+                const parts = Object.entries(value).map(([key, item]) => {
+                    return `<span class="ast-value-key" style="color: ${color};">${escapeHtml(key)}</span>: ${escapeHtml(String(item))}`;
+                });
+                return `<div class="ast-node-value">{ ${parts.join(', ')} }</div>`;
+            }
+            return `<div class="ast-node-value">${escapeHtml(JSON.stringify(value))}</div>`;
+        }
+
+        function toggleAllASTNodes() {
+            const tree = document.getElementById('ast-tree-root');
+            const btn = document.getElementById('ast-toggle-all-btn');
+            if (!tree || !btn) return;
+            const shouldCollapse = !tree.classList.contains('is-collapsed-all');
+            tree.classList.toggle('is-collapsed-all', shouldCollapse);
+            btn.textContent = shouldCollapse ? '全部展开' : '全部折叠';
+            tree.querySelectorAll('.ast-node').forEach(node => {
+                const branch = node.firstElementChild;
+                const content = branch ? branch.firstElementChild : null;
+                const toggle = content ? content.querySelector('.ast-node-toggle') : null;
+                if (!toggle || toggle.disabled) return;
+                node.classList.toggle('collapsed', shouldCollapse);
+                toggle.textContent = shouldCollapse ? '▸' : '▾';
+            });
+        }
+
+        function bindASTInteractions() {
+            const tree = document.getElementById('ast-tree-root');
+            const breadcrumb = document.getElementById('ast-breadcrumb');
+            const toggleBtn = document.getElementById('ast-toggle-all-btn');
+            if (!tree) return;
+
+            if (toggleBtn) {
+                toggleBtn.onclick = (event) => {
+                    event.preventDefault();
+                    toggleAllASTNodes();
+                };
+            }
+
+            tree.addEventListener('click', (event) => {
+                const toggle = event.target.closest('.ast-node-toggle');
+                if (!toggle || toggle.disabled) return;
+                const node = toggle.closest('.ast-node');
+                if (!node) return;
+                node.classList.toggle('collapsed');
+                toggle.textContent = node.classList.contains('collapsed') ? '▸' : '▾';
+                event.stopPropagation();
+            });
+
+            tree.addEventListener('click', (event) => {
+                const content = event.target.closest('.ast-node-content');
+                if (!content) return;
+                const toggle = event.target.closest('.ast-node-toggle');
+                if (toggle && !toggle.disabled) return;
+                const node = content.closest('.ast-node');
+                if (!node) return;
+                const nodeToggle = node.querySelector(':scope > .ast-node-branch .ast-node-toggle');
+                if (nodeToggle && !nodeToggle.disabled) {
+                    node.classList.toggle('collapsed');
+                    nodeToggle.textContent = node.classList.contains('collapsed') ? '▸' : '▾';
+                }
+                highlightASTPath(tree, breadcrumb, node);
+            });
+        }
+
+        function highlightASTPath(tree, breadcrumb, node) {
+            const path = node.dataset.path || '';
+            const segments = path ? path.split('/') : [];
+            const pathSet = new Set();
+            segments.reduce((acc, segment) => {
+                const next = acc ? `${acc}/${segment}` : segment;
+                pathSet.add(next);
+                return next;
+            }, '');
+
+            tree.querySelectorAll('.ast-node').forEach(item => {
+                const itemPath = item.dataset.path || '';
+                item.classList.toggle('is-selected', itemPath === path);
+                item.classList.toggle('is-path', pathSet.has(itemPath));
+            });
+
+            if (breadcrumb) {
+                const labels = [];
+                let current = node;
+                while (current) {
+                    labels.unshift(current.dataset.label || 'unknown');
+                    current = current.parentElement ? current.parentElement.closest('.ast-node') : null;
+                }
+                breadcrumb.querySelector('.ast-breadcrumb-trail').innerHTML = labels
+                    .map(label => `<span class="ast-breadcrumb-item">${escapeHtml(label)}</span>`)
+                    .join('<span class="ast-breadcrumb-sep">/</span>');
+            }
         }
 
         function displaySemanticResult(result) {
