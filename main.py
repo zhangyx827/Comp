@@ -10,7 +10,7 @@ def main():
     parser.add_argument('file', nargs='?', help='要编译的源代码文件路径')
     parser.add_argument('--web', action='store_true', help='启动 Web 可视化服务器')
     parser.add_argument('--port', type=int, default=8888, help='Web 服务器端口 (默认: 8888)')
-    parser.add_argument('--target', choices=['x86_64', 'riscv64'], default='x86_64',
+    parser.add_argument('--target', choices=['x86_64', 'riscv64', 'aarch64'], default='x86_64',
                         help='代码生成目标架构 (默认: x86_64)')
     
     args = parser.parse_args()

@@ -3,11 +3,12 @@ from .lexer import EnhancedLexer
 from .parser import EnhancedParser
 from .semantic import EnhancedSemanticAnalyzer
 from .optimizer import Optimizer, TACOptimizer
-from .tac import TACAssemblyGenerator, TACGenerator, TACRiscVAssemblyGenerator
+from .tac import TACAssemblyGenerator, TACGenerator, TACRiscVAssemblyGenerator, TACAArch64AssemblyGenerator
 
 CODE_GENERATORS = {
     'x86_64': TACAssemblyGenerator,
     'riscv64': TACRiscVAssemblyGenerator,
+    'aarch64': TACAArch64AssemblyGenerator,
 }
 
 class Compiler:

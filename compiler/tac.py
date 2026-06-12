@@ -938,3 +938,306 @@ class TACRiscVAssemblyGenerator:
 
     def emit(self, line: str):
         self.code.append("    " * self.indent + line)
+
+
+class TACAArch64AssemblyGenerator:
+    """Translate TAC to AArch64/ARM64 assembly."""
+
+    BINARY_OPS: Set[str] = TACAssemblyGenerator.BINARY_OPS
+    ARG_REGISTERS = ["x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7"]
+
+    def __init__(self):
+        self.code: List[str] = []
+        self.indent = 0
+        self.current_function: Optional[str] = None
+        self.function_epilogue: Optional[str] = None
+        self.offsets: Dict[str, int] = {}
+        self.array_symbols: Set[str] = set()
+        self.param_symbols: Set[str] = set()
+        self.frame_size = 0
+        self.pending_args: List[Any] = []
+
+    def generate(self, instructions: List[TACInstruction]) -> str:
+        self.code = []
+        self.emit(".text")
+        self.emit(".global main")
+        self.emit("")
+
+        functions = self._split_functions(instructions)
+        for name, body in functions:
+            self._prepare_frame(body)
+            self._emit_function(name, body)
+        return "\n".join(self.code)
+
+    def _split_functions(self, instructions: List[TACInstruction]) -> List[tuple]:
+        functions = []
+        current_name = None
+        current_body = []
+        for instruction in instructions:
+            if instruction.op == "function":
+                current_name = instruction.result
+                current_body = []
+            elif instruction.op == "end_function":
+                functions.append((current_name, current_body))
+                current_name = None
+                current_body = []
+            elif current_name is not None:
+                current_body.append(instruction)
+        return functions
+
+    def _prepare_frame(self, body: List[TACInstruction]):
+        self.offsets = {}
+        self.array_symbols = set()
+        self.param_symbols = set()
+        offset = 16
+        for instruction in body:
+            if instruction.op == "param_decl":
+                self.offsets[instruction.result] = offset
+                self.param_symbols.add(instruction.result)
+                offset += 8
+            elif instruction.op == "declare":
+                size = int(instruction.arg1 or 1)
+                self.offsets[instruction.result] = offset
+                if size > 1:
+                    self.array_symbols.add(instruction.result)
+                offset += size * 8
+            elif instruction.result and self._is_symbol(instruction.result):
+                if instruction.result not in self.offsets:
+                    self.offsets[instruction.result] = offset
+                    offset += 8
+        self.frame_size = self._align(offset, 16)
+
+    def _emit_function(self, name: str, body: List[TACInstruction]):
+        self.current_function = name
+        self.function_epilogue = f".L_{name}_return"
+        self.emit(f"{name}:")
+        self.indent += 1
+        self.emit(f"stp x29, x30, [sp, -{self.frame_size}]!")
+        self.emit("mov x29, sp")
+
+        for index, instruction in enumerate(i for i in body if i.op == "param_decl"):
+            if index < len(self.ARG_REGISTERS):
+                self._store(instruction.result, self.ARG_REGISTERS[index])
+            else:
+                stack_offset = 8 * (index - len(self.ARG_REGISTERS))
+                self.emit(f"ldr x9, [x29, #{stack_offset}]")
+                self._store(instruction.result, "x9")
+
+        for instruction in body:
+            if instruction.op != "param_decl":
+                self._emit_instruction(instruction)
+
+        self.emit(f"{self.function_epilogue}:")
+        self.emit("mov sp, x29")
+        self.emit("ldp x29, x30, [sp], 16")
+        self.emit("ret")
+        self.indent -= 1
+        self.emit("")
+        self.current_function = None
+        self.function_epilogue = None
+        self.pending_args = []
+
+    def _emit_instruction(self, instruction: TACInstruction):
+        op = instruction.op
+        if op == "declare":
+            return
+        if op == "label":
+            self.indent -= 1
+            self.emit(f"{instruction.result}:")
+            self.indent += 1
+            return
+        if op == "goto":
+            self.emit(f"b {instruction.result}")
+            return
+        if op == "if_false":
+            self._load(instruction.arg1, "x9")
+            self.emit("cbz x9, %s" % instruction.result)
+            return
+        if op == "return":
+            if instruction.arg1 is not None:
+                self._load(instruction.arg1, "x0")
+            self.emit(f"b {self.function_epilogue}")
+            return
+        if op == "assign":
+            self._load(instruction.arg1, "x9")
+            self._store(instruction.result, "x9")
+            return
+        if op in self.BINARY_OPS:
+            self._emit_binary(instruction)
+            return
+        if op in {"neg", "not", "bit_not", "deref", "addr"}:
+            self._emit_unary(instruction)
+            return
+        if op == "array_addr":
+            self._array_address(instruction.arg1, instruction.arg2)
+            self._store(instruction.result, "x9")
+            return
+        if op == "array_load":
+            self._array_address(instruction.arg1, instruction.arg2)
+            self.emit("ldr x9, [x9]")
+            self._store(instruction.result, "x9")
+            return
+        if op == "array_store":
+            self._array_address(instruction.result, instruction.arg1)
+            self._load(instruction.arg2, "x10")
+            self.emit("str x10, [x9]")
+            return
+        if op == "member_addr":
+            self._member_address(instruction.arg1, instruction.arg2)
+            self._store(instruction.result, "x9")
+            return
+        if op == "member_load":
+            self._member_address(instruction.arg1, instruction.arg2)
+            self.emit("ldr x9, [x9]")
+            self._store(instruction.result, "x9")
+            return
+        if op == "member_store":
+            self._member_address(instruction.arg1, instruction.arg2)
+            self._load(instruction.result, "x10")
+            self.emit("str x10, [x9]")
+            return
+        if op == "store":
+            self._load(instruction.result, "x9")
+            self._load(instruction.arg1, "x10")
+            self.emit("str x10, [x9]")
+            return
+        if op == "arg":
+            self.pending_args.append(instruction.arg1)
+            return
+        if op == "call":
+            stack_args = max(0, len(self.pending_args) - len(self.ARG_REGISTERS))
+            stack_size = self._align(stack_args * 8, 16)
+            if stack_size:
+                self.emit(f"sub sp, sp, #{stack_size}")
+            for index, arg in enumerate(self.pending_args):
+                if arg in self.array_symbols:
+                    self._address_of(arg, "x9")
+                else:
+                    self._load(arg, "x9")
+                if index < len(self.ARG_REGISTERS):
+                    self.emit(f"mov {self.ARG_REGISTERS[index]}, x9")
+                else:
+                    self.emit(f"str x9, [sp, #{(index - len(self.ARG_REGISTERS)) * 8}]")
+            self.emit(f"bl {instruction.arg1}")
+            if stack_size:
+                self.emit(f"add sp, sp, #{stack_size}")
+            self.pending_args = []
+            if instruction.result:
+                self._store(instruction.result, "x0")
+
+    def _emit_binary(self, instruction: TACInstruction):
+        self._load(instruction.arg1, "x9")
+        self._load(instruction.arg2, "x10")
+        op = instruction.op
+        if op == "+":
+            self.emit("add x9, x9, x10")
+        elif op == "-":
+            self.emit("sub x9, x9, x10")
+        elif op == "*":
+            self.emit("mul x9, x9, x10")
+        elif op == "/":
+            self.emit("sdiv x9, x9, x10")
+        elif op == "%":
+            self.emit("sdiv x11, x9, x10")
+            self.emit("msub x9, x11, x10, x9")
+        elif op in {"==", "!=", "<", ">", "<=", ">="}:
+            self.emit("cmp x9, x10")
+            if op == "==":
+                self.emit("cset x9, eq")
+            elif op == "!=":
+                self.emit("cset x9, ne")
+            elif op == "<":
+                self.emit("cset x9, lt")
+            elif op == ">":
+                self.emit("cset x9, gt")
+            elif op == "<=":
+                self.emit("cset x9, le")
+            elif op == ">=":
+                self.emit("cset x9, ge")
+        elif op == "&&":
+            self.emit("cmp x9, #0")
+            self.emit("cset x9, ne")
+            self.emit("cmp x10, #0")
+            self.emit("cset x10, ne")
+            self.emit("and x9, x9, x10")
+        elif op == "||":
+            self.emit("orr x9, x9, x10")
+            self.emit("cmp x9, #0")
+            self.emit("cset x9, ne")
+        elif op == "<<":
+            self.emit("lsl x9, x9, x10")
+        elif op == ">>":
+            self.emit("asr x9, x9, x10")
+        elif op == "&":
+            self.emit("and x9, x9, x10")
+        elif op == "|":
+            self.emit("orr x9, x9, x10")
+        elif op == "^":
+            self.emit("eor x9, x9, x10")
+        self._store(instruction.result, "x9")
+
+    def _emit_unary(self, instruction: TACInstruction):
+        if instruction.op == "addr":
+            self._address_of(instruction.arg1, "x9")
+        else:
+            self._load(instruction.arg1, "x9")
+            if instruction.op == "neg":
+                self.emit("neg x9, x9")
+            elif instruction.op == "not":
+                self.emit("cmp x9, #0")
+                self.emit("cset x9, eq")
+            elif instruction.op == "bit_not":
+                self.emit("mvn x9, x9")
+            elif instruction.op == "deref":
+                self.emit("ldr x9, [x9]")
+        self._store(instruction.result, "x9")
+
+    def _array_address(self, name: str, index: Any):
+        if name in self.param_symbols:
+            self._load(name, "x9")
+        else:
+            self._address_of(name, "x9")
+        self._load(index, "x10")
+        self.emit("lsl x10, x10, #3")
+        self.emit("add x9, x9, x10")
+
+    def _member_address(self, name: str, slot_offset: Any):
+        if name in self.param_symbols:
+            self._load(name, "x9")
+        else:
+            self._address_of(name, "x9")
+        offset = int(slot_offset or 0) * 8
+        if offset:
+            self.emit(f"add x9, x9, #{offset}")
+
+    def _address_of(self, symbol: str, register: str):
+        offset = self.offsets[symbol]
+        self.emit(f"add {register}, x29, #{offset}")
+
+    def _load(self, value: Any, register: str):
+        if self._is_immediate(value):
+            self.emit(f"mov {register}, #{value}")
+        else:
+            offset = self.offsets[value]
+            self.emit(f"ldr {register}, [x29, #{offset}]")
+
+    def _store(self, symbol: str, register: str):
+        offset = self.offsets[symbol]
+        self.emit(f"str {register}, [x29, #{offset}]")
+
+    def _is_immediate(self, value: Any) -> bool:
+        if value is None:
+            return False
+        text = str(value)
+        return text.lstrip("-").isdigit()
+
+    def _is_symbol(self, value: Any) -> bool:
+        return isinstance(value, str) and not self._is_immediate(value)
+
+    def _align(self, value: int, alignment: int) -> int:
+        if value == 0:
+            return 0
+        return ((value + alignment - 1) // alignment) * alignment
+
+    def emit(self, line: str):
+        self.code.append("    " * self.indent + line)

@@ -12,7 +12,7 @@
 - **语义分析**：符号表管理、作用域控制、类型检查
 - **代码优化**：常量折叠（Constant Folding）
 - **TAC 中间表示**：将 AST 降低为目标无关的三地址码
-- **代码生成**：支持 Intel 语法 x86-64 汇编和 RISC-V 64 汇编
+- **代码生成**：支持 Intel 语法 x86-64 汇编、RISC-V 64 汇编和 AArch64/ARM64 汇编
 
 ### Web 可视化平台
 - **代码编辑器**：CodeMirror 集成，支持语法高亮
@@ -101,6 +101,9 @@ python main.py examples/00_test.c
 
 # 编译单个文件并输出 RISC-V 64 汇编
 python main.py examples/00_test.c --target riscv64
+
+# 编译单个文件并输出 ARM64 / AArch64 汇编
+python main.py examples/00_test.c --target aarch64
 ```
 
 ### 运行测试
