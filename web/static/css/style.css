@@ -835,6 +835,148 @@
             font-weight: 600;
         }
 
+        .basic-block-algorithm {
+            background: rgba(15, 23, 42, 0.55);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.85rem;
+            margin-bottom: 1rem;
+        }
+
+        .basic-block-algorithm-title {
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .basic-block-algorithm-steps {
+            display: grid;
+            gap: 0.35rem;
+            color: var(--text-secondary);
+            font-size: 0.82rem;
+            line-height: 1.5;
+        }
+
+        .basic-block-compare {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 1rem;
+            align-items: start;
+        }
+
+        .basic-block-set {
+            min-width: 0;
+        }
+
+        .basic-block-summary {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 0.35rem 0.6rem;
+        }
+
+        .basic-block-summary span {
+            white-space: nowrap;
+        }
+
+        .basic-block-unreachable-count {
+            color: var(--warning);
+        }
+
+        .basic-block-note {
+            margin-top: 1rem;
+            color: var(--warning);
+            font-size: 0.85rem;
+            background: rgba(245, 158, 11, 0.08);
+            border: 1px solid rgba(245, 158, 11, 0.24);
+            border-radius: 8px;
+            padding: 0.65rem 0.8rem;
+        }
+
+        .basic-block-list {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .basic-block-card {
+            background: rgba(15, 23, 42, 0.55);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.85rem;
+        }
+
+        .basic-block-card.is-unreachable {
+            border-color: rgba(245, 158, 11, 0.42);
+            background: rgba(245, 158, 11, 0.07);
+        }
+
+        .basic-block-header {
+            display: flex;
+            justify-content: space-between;
+            gap: 0.5rem;
+            align-items: center;
+            margin-bottom: 0.6rem;
+        }
+
+        .basic-block-title {
+            color: var(--accent-primary);
+            font-size: 0.9rem;
+            font-weight: 700;
+            margin-right: 0.45rem;
+        }
+
+        .basic-block-range {
+            color: var(--text-tertiary);
+            font-size: 0.76rem;
+        }
+
+        .basic-block-size {
+            color: var(--text-tertiary);
+            font-size: 0.8rem;
+        }
+
+        .basic-block-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.45rem;
+            margin-bottom: 0.65rem;
+            color: var(--text-secondary);
+            font-size: 0.76rem;
+            line-height: 1.35;
+        }
+
+        .basic-block-meta span {
+            background: rgba(148, 163, 184, 0.08);
+            border: 1px solid rgba(148, 163, 184, 0.14);
+            border-radius: 6px;
+            padding: 0.22rem 0.4rem;
+        }
+
+        .basic-block-meta .basic-block-unreachable {
+            color: var(--warning);
+            border-color: rgba(245, 158, 11, 0.24);
+            background: rgba(245, 158, 11, 0.08);
+        }
+
+        .basic-block-line {
+            display: grid;
+            grid-template-columns: 2.5rem minmax(0, 1fr);
+            gap: 0.5rem;
+        }
+
+        .basic-block-index {
+            color: var(--text-tertiary);
+            user-select: none;
+            text-align: right;
+        }
+
         /* Error/Warning Display */
         .error-list, .warning-list {
             max-height: 300px;
@@ -923,6 +1065,10 @@
             }
 
             .tac-compare {
+                grid-template-columns: 1fr;
+            }
+
+            .basic-block-compare {
                 grid-template-columns: 1fr;
             }
             

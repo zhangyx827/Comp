@@ -88,10 +88,12 @@ class Compiler:
                 self.tac_generator = TACGenerator()
                 tac_instructions = self.tac_generator.generate(optimized_ast)
                 original_tac_text = '\n'.join(str(instruction) for instruction in tac_instructions)
+                original_basic_blocks = TACOptimizer().analyze_basic_blocks(tac_instructions)
                 result['original_tac_result'] = {
                     'instructions': [instruction.to_dict() for instruction in tac_instructions],
                     'text': original_tac_text,
-                    'lines': len(tac_instructions)
+                    'lines': len(tac_instructions),
+                    'basic_blocks': original_basic_blocks
                 }
 
                 # TAC 中间代码优化
@@ -101,12 +103,14 @@ class Compiler:
                     self.tac_optimizer.optimizations_applied
                 )
                 tac_text = '\n'.join(str(instruction) for instruction in optimized_tac_instructions)
+                optimized_basic_blocks = self.tac_optimizer.analyze_basic_blocks(optimized_tac_instructions)
                 result['tac_result'] = {
                     'instructions': [instruction.to_dict() for instruction in optimized_tac_instructions],
                     'text': tac_text,
                     'lines': len(optimized_tac_instructions),
                     'original_lines': len(tac_instructions),
-                    'optimized': True
+                    'optimized': True,
+                    'basic_blocks': optimized_basic_blocks
                 }
 
                 # 汇编代码生成

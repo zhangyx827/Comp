@@ -163,7 +163,7 @@ int main() {
         }
 
         function resetPipeline() {
-            ['lexer', 'parser', 'semantic', 'tac', 'code'].forEach(stage => {
+            ['lexer', 'parser', 'semantic', 'tac', 'basic-blocks', 'code'].forEach(stage => {
                 document.getElementById(`status-${stage}`).className = 'stage-status';
                 document.getElementById(`stage-${stage}`).classList.remove('active');
             });
@@ -218,9 +218,17 @@ int main() {
                 if (result.tac_result) {
                     setStageStatus('tac', 'success');
                     displayTacResult(result.tac_result, result.original_tac_result, result.optimization_result);
+                    displayBasicBlocks(result.tac_result, result.original_tac_result);
                     document.getElementById('stat-tac-lines').textContent = result.tac_result.lines;
                 }
             }, 600);
+
+            setTimeout(() => {
+                activateStage('basic-blocks');
+                if (result.tac_result) {
+                    setStageStatus('basic-blocks', 'success');
+                }
+            }, 700);
 
             // Code Generation
             setTimeout(() => {
@@ -592,6 +600,160 @@ int main() {
             return html;
         }
 
+        function displayBasicBlocks(tacResult, originalTacResult) {
+            const container = document.getElementById('content-basic-blocks');
+            const optimizedBlocks = getBasicBlockData(tacResult);
+            const originalBlocks = getBasicBlockData(originalTacResult);
+            const removedCount = originalBlocks?.unreachable_count || 0;
+
+            let html = '<div class="basic-block-algorithm">';
+            html += '<div class="basic-block-algorithm-title">划分规则</div>';
+            html += '<div class="basic-block-algorithm-steps">';
+            html += '<span>1. 求入口语句：程序/函数入口、标号语句、转移目标、转移或停语句之后的下一语句。</span>';
+            html += '<span>2. 每个入口到下一入口前，或到转移/停语句止，构成一个基本块。</span>';
+            html += '<span>3. 没有被控制流到达的基本块标为不可达，优化后删除。</span>';
+            html += '</div></div>';
+
+            if (originalBlocks && tacResult?.basic_blocks) {
+                html += '<div class="basic-block-compare">';
+                html += renderBasicBlockSet('优化前基本块', originalBlocks, originalTacResult?.lines, true);
+                html += renderBasicBlockSet('优化后基本块', optimizedBlocks, tacResult?.lines, false);
+                html += '</div>';
+            } else {
+                html += renderBasicBlockSet('基本块', optimizedBlocks, tacResult?.lines, false);
+            }
+
+            if (removedCount > 0) {
+                html += `<div class="basic-block-note">优化前检测到 ${removedCount} 条不可达 TAC，优化后已从代码流中删除。</div>`;
+            }
+            container.innerHTML = html;
+        }
+
+        function getBasicBlockData(tacResult) {
+            if (tacResult?.basic_blocks) {
+                return tacResult.basic_blocks;
+            }
+            const instructions = Array.isArray(tacResult?.instructions) ? tacResult.instructions : [];
+            return buildBasicBlocksFallback(instructions);
+        }
+
+        function renderBasicBlockSet(title, blockData, lineCount, showUnreachable) {
+            const blocks = Array.isArray(blockData?.blocks) ? blockData.blocks : [];
+            let html = `<div class="basic-block-set">
+                <div class="basic-block-summary">
+                    <span>${escapeHtml(title)}</span>
+                    <span>${blocks.length} 个基本块</span>`;
+            if (typeof lineCount === 'number') {
+                html += `<span>${lineCount} 条 TAC</span>`;
+            }
+            if (showUnreachable && blockData?.unreachable_count) {
+                html += `<span class="basic-block-unreachable-count">${blockData.unreachable_count} 条不可达</span>`;
+            }
+            html += '</div>';
+
+            if (!blocks.length) {
+                html += '<div class="empty-state"><div class="empty-state-icon">🧱</div><p>没有可划分的基本块</p></div></div>';
+                return html;
+            }
+
+            html += '<div class="basic-block-list">';
+            blocks.forEach(block => {
+                const unreachableClass = block.reachable === false ? ' is-unreachable' : '';
+                html += `<div class="basic-block-card${unreachableClass}">
+                    <div class="basic-block-header">
+                        <div>
+                            <span class="basic-block-title">B${block.id}</span>
+                            <span class="basic-block-range">#${block.start} - #${block.end}</span>
+                        </div>
+                        <span class="basic-block-size">${block.size || block.instructions.length} 条</span>
+                    </div>
+                    <div class="basic-block-meta">
+                        <span>入口：${escapeHtml((block.leader_reasons || []).join('、') || '入口语句')}</span>
+                        <span>后继：${block.successors?.length ? block.successors.map(id => `B${id}`).join(', ') : '无'}</span>
+                        ${block.reachable === false ? '<span class="basic-block-unreachable">不可达</span>' : ''}
+                    </div>
+                    <div class="assembly-code">`;
+                block.instructions.forEach(instruction => {
+                    const text = escapeHtml(instruction.text || formatTacInstruction(instruction));
+                    const index = instruction.index ?? '';
+                    const lineClass = instruction.op === 'label' ? 'assembly-label' : 'assembly-instruction';
+                    html += `<div class="assembly-line basic-block-line">
+                        <span class="basic-block-index">${index}</span>
+                        <span class="${lineClass}">${text}</span>
+                    </div>`;
+                });
+                html += '</div></div>';
+            });
+            html += '</div></div>';
+            return html;
+        }
+
+        function buildBasicBlocksFallback(instructions) {
+            if (!instructions.length) return { blocks: [], entry_indexes: [], unreachable_indexes: [], unreachable_count: 0 };
+
+            const leaders = new Set([0]);
+            const labelPositions = new Map();
+            const branchOps = new Set(['goto', 'if_false']);
+            const terminators = new Set(['goto', 'if_false', 'return', 'end_function']);
+
+            instructions.forEach((instruction, index) => {
+                if (instruction.op === 'label') {
+                    leaders.add(index);
+                }
+                if (instruction.op === 'label' && instruction.result != null) {
+                    labelPositions.set(instruction.result, index);
+                }
+            });
+
+            instructions.forEach((instruction, index) => {
+                if (terminators.has(instruction.op) && index + 1 < instructions.length) {
+                    leaders.add(index + 1);
+                }
+                if (branchOps.has(instruction.op) && labelPositions.has(instruction.result)) {
+                    leaders.add(labelPositions.get(instruction.result));
+                }
+            });
+
+            const sortedLeaders = [...leaders].filter(i => i >= 0 && i < instructions.length).sort((a, b) => a - b);
+            const blocks = [];
+            for (let i = 0; i < sortedLeaders.length; i++) {
+                const start = sortedLeaders[i];
+                const end = i + 1 < sortedLeaders.length ? sortedLeaders[i + 1] : instructions.length;
+                const blockInstructions = instructions.slice(start, end).map((instruction, offset) => ({
+                    ...instruction,
+                    index: start + offset
+                }));
+                if (blockInstructions.length) {
+                    blocks.push({
+                        id: blocks.length + 1,
+                        start,
+                        end: start + blockInstructions.length - 1,
+                        size: blockInstructions.length,
+                        leader_reasons: ['入口语句'],
+                        reachable: true,
+                        successors: [],
+                        instructions: blockInstructions
+                    });
+                }
+            }
+            return { blocks, entry_indexes: sortedLeaders, unreachable_indexes: [], unreachable_count: 0 };
+        }
+
+        function formatTacInstruction(instruction) {
+            if (!instruction) return '';
+            if (instruction.text) return instruction.text;
+            const { op, arg1, arg2, result } = instruction;
+            if (op === 'function') return `function ${result}:`;
+            if (op === 'end_function') return `end function ${result}`;
+            if (op === 'label') return `${result}:`;
+            if (op === 'goto') return `goto ${result}`;
+            if (op === 'if_false') return `if_false ${arg1} goto ${result}`;
+            if (op === 'return') return arg1 != null ? `return ${arg1}` : 'return';
+            if (op === 'assign') return `${result} = ${arg1}`;
+            if (op === 'arg') return `arg ${arg1}`;
+            return `${result} = ${arg1} ${op} ${arg2}`;
+        }
+
         function displayErrors(errors) {
             const container = document.getElementById('content-errors');
             let html = '';
@@ -658,11 +820,51 @@ int main() {
                 },
                 original_tac_result: {
                     text: `function add:\nparam a\nparam b\nt1 = a + b\nsum = t1\nreturn sum\nend function add`,
-                    lines: 7
+                    lines: 7,
+                    instructions: [
+                        { op: 'function', result: 'add', text: 'function add:' },
+                        { op: 'param_decl', result: 'a', text: 'param a' },
+                        { op: 'param_decl', result: 'b', text: 'param b' },
+                        { op: '+', arg1: 'a', arg2: 'b', result: 't1', text: 't1 = a + b' },
+                        { op: 'assign', arg1: 't1', result: 'sum', text: 'sum = t1' },
+                        { op: 'return', arg1: 'sum', text: 'return sum' },
+                        { op: 'end_function', result: 'add', text: 'end function add' }
+                    ],
+                    basic_blocks: {
+                        blocks: [
+                            {
+                                id: 1,
+                                start: 0,
+                                end: 4,
+                                size: 5,
+                                leader_reasons: ['函数入口'],
+                                reachable: true,
+                                successors: [],
+                                instructions: [
+                                    { op: 'function', result: 'add', text: 'function add:', index: 0 },
+                                    { op: 'param_decl', result: 'a', text: 'param a', index: 1 },
+                                    { op: 'param_decl', result: 'b', text: 'param b', index: 2 },
+                                    { op: '+', arg1: 'a', arg2: 'b', result: 't1', text: 't1 = a + b', index: 3 },
+                                    { op: 'return', arg1: 't1', text: 'return t1', index: 4 }
+                                ]
+                            }
+                        ],
+                        entry_indexes: [0],
+                        unreachable_indexes: [],
+                        unreachable_count: 0
+                    }
                 },
                 tac_result: {
                     text: `function add:\nparam a\nparam b\nt1 = a + b\nreturn t1\nend function add`,
-                    lines: 6
+                    lines: 6,
+                    instructions: [
+                        { op: 'function', result: 'add', text: 'function add:' },
+                        { op: 'param_decl', result: 'a', text: 'param a' },
+                        { op: 'param_decl', result: 'b', text: 'param b' },
+                        { op: '+', arg1: 'a', arg2: 'b', result: 't1', text: 't1 = a + b' },
+                        { op: 'return', arg1: 't1', text: 'return t1' },
+                        { op: 'end_function', result: 'add', text: 'end function add' }
+                    ]
                 },
                 optimization_result: {
                     applied: ['dead code elimination']

@@ -142,7 +142,6 @@
                 </div>
             </div>
 
-            <!-- Code Generation -->
             <div class="pipeline-stage" id="stage-tac">
                 <div class="stage-header">
                     <h3 class="stage-title">
@@ -155,6 +154,23 @@
                     <div class="empty-state">
                         <div class="empty-state-icon">🧾</div>
                         <p>AST 降低后的 TAC 将显示在这里</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Basic Block Partition -->
+            <div class="pipeline-stage" id="stage-basic-blocks">
+                <div class="stage-header">
+                    <h3 class="stage-title">
+                        <span class="stage-icon">🧩</span>
+                        基本块划分
+                    </h3>
+                    <div class="stage-status" id="status-basic-blocks"></div>
+                </div>
+                <div class="stage-content" id="content-basic-blocks">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🧱</div>
+                        <p>每个 TAC 基本块将显示在这里</p>
                     </div>
                 </div>
             </div>
