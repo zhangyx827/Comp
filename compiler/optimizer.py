@@ -184,6 +184,8 @@ class TACOptimizer:
         elif instruction.op == "array_store":
             instruction.arg1 = constants.get(instruction.arg1, instruction.arg1)
             instruction.arg2 = constants.get(instruction.arg2, instruction.arg2)
+        elif instruction.op == "member_store":
+            instruction.result = constants.get(instruction.result, instruction.result)
         elif instruction.op == "store":
             instruction.arg1 = constants.get(instruction.arg1, instruction.arg1)
 
@@ -513,6 +515,8 @@ class TACOptimizer:
             return [instruction.arg2]
         if instruction.op == "array_store":
             return [instruction.arg1, instruction.arg2]
+        if instruction.op == "member_store":
+            return [instruction.result]
         if instruction.op == "store":
             return [instruction.arg1, instruction.result]
         if instruction.op == "call":
@@ -527,7 +531,7 @@ class TACOptimizer:
         )
 
     def _is_barrier(self, instruction: TACInstruction) -> bool:
-        return instruction.op in {"label", "goto", "if_false", "call", "store", "array_store"}
+        return instruction.op in {"label", "goto", "if_false", "call", "store", "array_store", "member_store"}
 
     def _build_function_summaries(self, instructions: List[TACInstruction]) -> Dict[str, Dict[str, Any]]:
         summaries: Dict[str, Dict[str, Any]] = {}
@@ -561,6 +565,9 @@ class TACOptimizer:
             "call",
             "array_load",
             "array_store",
+            "member_addr",
+            "member_load",
+            "member_store",
             "store",
             "addr",
             "deref",

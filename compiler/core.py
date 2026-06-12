@@ -11,6 +11,9 @@ class TokenType:
     STRING = 'STRING'
     BOOL = 'BOOL'
     VOID = 'VOID'
+    STRUCT = 'STRUCT'
+    UNION = 'UNION'
+    ENUM = 'ENUM'
     IF = 'IF'
     ELSE = 'ELSE'
     WHILE = 'WHILE'
@@ -125,4 +128,3 @@ class ASTNode:
         if self.children:
             result['children'] = [child.to_dict() if isinstance(child, ASTNode) else child for child in self.children]
         return result
-

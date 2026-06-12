@@ -49,6 +49,12 @@ class TACInstruction:
             return f"{self.result} = {self.arg1}[{self.arg2}]"
         if self.op == "array_store":
             return f"{self.result}[{self.arg1}] = {self.arg2}"
+        if self.op == "member_addr":
+            return f"{self.result} = &{self.arg1}.{self.arg2}"
+        if self.op == "member_load":
+            return f"{self.result} = {self.arg1}.{self.arg2}"
+        if self.op == "member_store":
+            return f"{self.arg1}.{self.arg2} = {self.result}"
         if self.op == "store":
             return f"*{self.result} = {self.arg1}"
         if self.op == "arg":
@@ -117,7 +123,7 @@ class TACGenerator:
 
     def visit_variable_declaration(self, node: ASTNode):
         name = node.value["name"]
-        self.emit("declare", node.value.get("array_size"), result=name)
+        self.emit("declare", node.value.get("storage_slots", node.value.get("array_size")), result=name)
         if node.children:
             value = self.visit(node.children[0])
             self.emit("assign", value, result=name)
@@ -206,6 +212,10 @@ class TACGenerator:
             index = self.visit(left.children[1])
             self.emit("array_store", index, value, result=array_name)
             return value
+        if left.type == "member_access":
+            base, offset = self.member_reference(left)
+            self.emit("member_store", base, offset, result=value)
+            return value
         if left.type == "unary_expression" and left.value.get("operator") == "*":
             address = self.visit(left.children[0])
             self.emit("store", value, result=address)
@@ -234,6 +244,9 @@ class TACGenerator:
         result = self.new_temp()
         if child.type == "identifier":
             self.emit("addr", child.value["name"], result=result)
+        elif child.type == "member_access":
+            base, offset = self.member_reference(child)
+            self.emit("member_addr", base, offset, result)
         elif child.type == "array_access":
             array_name = child.children[0].value["name"]
             index = self.visit(child.children[1])
@@ -267,6 +280,22 @@ class TACGenerator:
         result = self.new_temp()
         self.emit("array_load", array_name, index, result)
         return result
+
+    def visit_member_access(self, node: ASTNode):
+        base, offset = self.member_reference(node)
+        result = self.new_temp()
+        self.emit("member_load", base, offset, result)
+        return result
+
+    def member_reference(self, node: ASTNode):
+        base_node = node.children[0]
+        offset = int(node.value.get("offset", 0))
+        if base_node.type == "identifier":
+            return base_node.value["name"], offset
+        if base_node.type == "member_access":
+            base, base_offset = self.member_reference(base_node)
+            return base, base_offset + offset
+        raise ValueError("成员访问基表达式暂仅支持变量或嵌套成员")
 
     def visit_identifier(self, node: ASTNode):
         return node.value["name"]
@@ -450,6 +479,22 @@ class TACAssemblyGenerator:
             self.emit("pop rax")
             self.emit("mov qword ptr [rax], rbx")
             return
+        if op == "member_addr":
+            self._member_address(instruction.arg1, instruction.arg2)
+            self._store(instruction.result, "rax")
+            return
+        if op == "member_load":
+            self._member_address(instruction.arg1, instruction.arg2)
+            self.emit("mov rax, qword ptr [rax]")
+            self._store(instruction.result, "rax")
+            return
+        if op == "member_store":
+            self._member_address(instruction.arg1, instruction.arg2)
+            self.emit("push rax")
+            self._load(instruction.result, "rbx")
+            self.emit("pop rax")
+            self.emit("mov qword ptr [rax], rbx")
+            return
         if op == "store":
             self._load(instruction.result, "rax")
             self.emit("push rax")
@@ -549,6 +594,15 @@ class TACAssemblyGenerator:
         self.emit("imul rbx, 8")
         self.emit("pop rax")
         self.emit("add rax, rbx")
+
+    def _member_address(self, name: str, slot_offset: Any):
+        if name in self.param_symbols:
+            self._load(name, "rax")
+        else:
+            self._address_of(name, "rax")
+        offset = int(slot_offset or 0) * 8
+        if offset:
+            self.emit(f"add rax, {offset}")
 
     def _address_of(self, symbol: str, register: str):
         offset = self.offsets[symbol]
@@ -728,6 +782,20 @@ class TACRiscVAssemblyGenerator:
             self._load(instruction.arg2, "t1")
             self.emit("sd t1, 0(t0)")
             return
+        if op == "member_addr":
+            self._member_address(instruction.arg1, instruction.arg2)
+            self._store(instruction.result, "t0")
+            return
+        if op == "member_load":
+            self._member_address(instruction.arg1, instruction.arg2)
+            self.emit("ld t0, 0(t0)")
+            self._store(instruction.result, "t0")
+            return
+        if op == "member_store":
+            self._member_address(instruction.arg1, instruction.arg2)
+            self._load(instruction.result, "t1")
+            self.emit("sd t1, 0(t0)")
+            return
         if op == "store":
             self._load(instruction.result, "t0")
             self._load(instruction.arg1, "t1")
@@ -829,6 +897,15 @@ class TACRiscVAssemblyGenerator:
         self._load(index, "t1")
         self.emit("slli t1, t1, 3")
         self.emit("add t0, t0, t1")
+
+    def _member_address(self, name: str, slot_offset: Any):
+        if name in self.param_symbols:
+            self._load(name, "t0")
+        else:
+            self._address_of(name, "t0")
+        offset = int(slot_offset or 0) * 8
+        if offset:
+            self.emit(f"addi t0, t0, {offset}")
 
     def _address_of(self, symbol: str, register: str):
         offset = self.offsets[symbol]

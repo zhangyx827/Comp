@@ -1,26 +1,39 @@
         const sampleCodes = {
-            complex: `// 综合示例程序
-int add(int a, int b) {
-    int sum = a + b;
-    return sum;
+            complex: `// 综合示例程序：struct / enum / union
+enum Status {
+    STATUS_INIT = 0,
+    STATUS_RUNNING = 1,
+    STATUS_DONE = 2
+};
+
+union Payload {
+    int number;
+    int flag;
+};
+
+struct Task {
+    int id;
+    enum Status status;
+    union Payload payload;
+};
+
+int make_task_id(int base, int offset) {
+    return base + offset;
 }
 
 int main() {
-    int x = 10;
-    int y = 20;
-    int result = add(x, y);
-    
-    if (result > 25) {
-        result = result - 5;
+    struct Task task;
+    task.id = make_task_id(100, 7);
+    task.status = STATUS_RUNNING;
+    task.payload.number = 42;
+
+    if (task.status == STATUS_RUNNING) {
+        task.payload.flag = task.payload.number + task.id;
     } else {
-        result = result + 5;
+        task.payload.flag = 0;
     }
-    
-    while (result < 30) {
-        result = result + 1;
-    }
-    
-    return result;
+
+    return task.payload.flag;
 }`,
             math: `// 示例: 基础运算
 int main() {

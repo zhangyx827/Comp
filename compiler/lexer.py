@@ -16,6 +16,7 @@ class EnhancedLexer:
         self.keywords = {
             'int': TokenType.INT, 'float': TokenType.FLOAT, 'char': TokenType.CHAR,
             'string': TokenType.STRING, 'bool': TokenType.BOOL, 'void': TokenType.VOID,
+            'struct': TokenType.STRUCT, 'union': TokenType.UNION, 'enum': TokenType.ENUM,
             'if': TokenType.IF, 'else': TokenType.ELSE, 'while': TokenType.WHILE,
             'for': TokenType.FOR, 'return': TokenType.RETURN, 'break': TokenType.BREAK,
             'continue': TokenType.CONTINUE, 'true': TokenType.TRUE, 'false': TokenType.FALSE
@@ -43,9 +44,11 @@ class EnhancedLexer:
             ('ASSIGN', r'='),
             ('AND', r'&&'),
             ('OR', r'\|\|'),
+            ('NOT', r'!'),
             ('BIT_AND', r'&'),
             ('BIT_OR', r'\|'),
             ('BIT_XOR', r'\^'),
+            ('BIT_NOT', r'~'),
             ('PLUS', r'\+'),
             ('MINUS', r'-'),
             ('MULTIPLY', r'\*'),
@@ -115,4 +118,3 @@ class EnhancedLexer:
             'errors': self.errors,
             'warnings': self.warnings
         }
-

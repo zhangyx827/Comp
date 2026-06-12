@@ -10,6 +10,11 @@ class EnhancedParser:
         self.current_token = tokens[0] if tokens else None
         self.errors = []
         self.warnings = []
+        self.type_specifiers = {
+            TokenType.INT, TokenType.FLOAT, TokenType.CHAR, TokenType.STRING,
+            TokenType.BOOL, TokenType.VOID, TokenType.STRUCT, TokenType.UNION,
+            TokenType.ENUM
+        }
     
     def peek(self, offset=1):
         idx = self.pos + offset
@@ -40,28 +45,141 @@ class EnhancedParser:
             except SyntaxError as e:
                 self.errors.append({'message': e.message, 'line': e.line, 'column': e.column})
                 # 尝试恢复解析
-                while self.current_token.type not in [TokenType.EOF, TokenType.INT, TokenType.FLOAT]:
+                while self.current_token.type not in [TokenType.EOF, TokenType.SEMICOLON] and self.current_token.type not in self.type_specifiers:
                     self.pos += 1
                     if self.pos < len(self.tokens):
                         self.current_token = self.tokens[self.pos]
+                if self.current_token.type == TokenType.SEMICOLON:
+                    self.eat(TokenType.SEMICOLON)
                 if self.current_token.type == TokenType.EOF:
                     break
         
         return ASTNode('program', children, line=1, column=1)
     
     def declaration(self) -> ASTNode:
-        if self.current_token.type in [TokenType.INT, TokenType.FLOAT, TokenType.CHAR, 
-                                       TokenType.STRING, TokenType.BOOL, TokenType.VOID]:
-            if self.peek() and self.peek().type == TokenType.IDENTIFIER:
-                if self.peek(2) and self.peek(2).type == TokenType.LEFT_PAREN:
+        if self.current_token.type in self.type_specifiers:
+            if self._is_type_definition_start():
+                return self.composite_type_definition()
+            declarator_index = self._declarator_start_index()
+            if declarator_index is not None:
+                if self._token_at(declarator_index).type == TokenType.IDENTIFIER and self._token_at(declarator_index + 1) and self._token_at(declarator_index + 1).type == TokenType.LEFT_PAREN:
                     return self.function_declaration()
             return self.statement()
         return self.statement()
+
+    def _token_at(self, index):
+        return self.tokens[index] if index < len(self.tokens) else None
+
+    def _is_type_definition_start(self) -> bool:
+        if self.current_token.type not in [TokenType.STRUCT, TokenType.UNION, TokenType.ENUM]:
+            return False
+        if self.peek() and self.peek().type == TokenType.LEFT_BRACE:
+            return True
+        return self.peek() and self.peek().type == TokenType.IDENTIFIER and self.peek(2) and self.peek(2).type == TokenType.LEFT_BRACE
+
+    def _declarator_start_index(self):
+        index = self.pos
+        if self._token_at(index).type in [TokenType.STRUCT, TokenType.UNION, TokenType.ENUM]:
+            index += 1
+            if self._token_at(index) and self._token_at(index).type == TokenType.IDENTIFIER:
+                index += 1
+            else:
+                return None
+        elif self._token_at(index).type in self.type_specifiers:
+            index += 1
+        else:
+            return None
+        while self._token_at(index) and self._token_at(index).type == TokenType.MULTIPLY:
+            index += 1
+        return index
+
+    def parse_type_specifier(self) -> Dict[str, Any]:
+        line, col = self.current_token.line, self.current_token.column
+        if self.current_token.type in [TokenType.STRUCT, TokenType.UNION, TokenType.ENUM]:
+            kind = self.eat(self.current_token.type).value
+            name = None
+            if self.current_token.type == TokenType.IDENTIFIER:
+                name = self.eat(TokenType.IDENTIFIER).value
+            return {'kind': kind, 'name': name, 'text': f"{kind} {name}" if name else kind, 'line': line, 'column': col}
+        if self.current_token.type in self.type_specifiers:
+            text = self.current_token.value
+            self.eat(self.current_token.type)
+            return {'kind': 'primitive', 'name': text, 'text': text, 'line': line, 'column': col}
+        raise SyntaxError(f"期望类型说明符, 得到 {self.current_token.type}", line, col)
+
+    def type_to_text(self, type_spec: Dict[str, Any]) -> str:
+        return type_spec['text']
+
+    def composite_type_definition(self) -> ASTNode:
+        line, col = self.current_token.line, self.current_token.column
+        kind = self.eat(self.current_token.type).value
+        name = None
+        if self.current_token.type == TokenType.IDENTIFIER:
+            name = self.eat(TokenType.IDENTIFIER).value
+        self.eat(TokenType.LEFT_BRACE)
+        if kind == 'enum':
+            members = self.enum_member_list()
+        else:
+            members = self.field_declaration_list()
+        self.eat(TokenType.RIGHT_BRACE)
+        self.eat(TokenType.SEMICOLON)
+        return ASTNode(f'{kind}_definition', [], {'name': name, 'members': members}, line, col)
+
+    def field_declaration_list(self) -> List[Dict]:
+        fields = []
+        while self.current_token.type != TokenType.RIGHT_BRACE:
+            type_spec = self.parse_type_specifier()
+            while True:
+                is_pointer = False
+                while self.current_token.type == TokenType.MULTIPLY:
+                    self.eat(TokenType.MULTIPLY)
+                    is_pointer = True
+                name = self.eat(TokenType.IDENTIFIER).value
+                array_size = None
+                if self.current_token.type == TokenType.LEFT_BRACKET:
+                    self.eat(TokenType.LEFT_BRACKET)
+                    if self.current_token.type == TokenType.INTEGER_LITERAL:
+                        array_size = int(self.current_token.value)
+                        self.eat(TokenType.INTEGER_LITERAL)
+                    self.eat(TokenType.RIGHT_BRACKET)
+                field = {'name': name, 'type': self.type_to_text(type_spec)}
+                if is_pointer:
+                    field['is_pointer'] = True
+                if array_size is not None:
+                    field['array_size'] = array_size
+                fields.append(field)
+                if self.current_token.type != TokenType.COMMA:
+                    break
+                self.eat(TokenType.COMMA)
+            self.eat(TokenType.SEMICOLON)
+        return fields
+
+    def enum_member_list(self) -> List[Dict]:
+        members = []
+        next_value = 0
+        while self.current_token.type != TokenType.RIGHT_BRACE:
+            name = self.eat(TokenType.IDENTIFIER).value
+            value = next_value
+            if self.current_token.type == TokenType.ASSIGN:
+                self.eat(TokenType.ASSIGN)
+                sign = 1
+                if self.current_token.type == TokenType.MINUS:
+                    self.eat(TokenType.MINUS)
+                    sign = -1
+                value = sign * int(self.eat(TokenType.INTEGER_LITERAL).value)
+            members.append({'name': name, 'value': value})
+            next_value = value + 1
+            if self.current_token.type != TokenType.COMMA:
+                break
+            self.eat(TokenType.COMMA)
+            if self.current_token.type == TokenType.RIGHT_BRACE:
+                break
+        return members
     
     def function_declaration(self) -> ASTNode:
-        return_type = self.current_token.value
-        line, col = self.current_token.line, self.current_token.column
-        self.eat(self.current_token.type)
+        type_spec = self.parse_type_specifier()
+        return_type = self.type_to_text(type_spec)
+        line, col = type_spec['line'], type_spec['column']
         func_name = self.eat(TokenType.IDENTIFIER).value
         self.eat(TokenType.LEFT_PAREN)
         
@@ -84,9 +202,9 @@ class EnhancedParser:
         return params
     
     def parameter(self) -> Dict:
-        param_type = self.current_token.value
-        line, col = self.current_token.line, self.current_token.column
-        self.eat(self.current_token.type)
+        type_spec = self.parse_type_specifier()
+        param_type = self.type_to_text(type_spec)
+        line, col = type_spec['line'], type_spec['column']
         
         # 检查是否是指针参数
         is_pointer = False
@@ -138,8 +256,7 @@ class EnhancedParser:
             return self.continue_statement()
         elif self.current_token.type == TokenType.LEFT_BRACE:
             return self.block()
-        elif self.current_token.type in [TokenType.INT, TokenType.FLOAT, 
-                                         TokenType.CHAR, TokenType.STRING, TokenType.BOOL]:
+        elif self.current_token.type in self.type_specifiers and self.current_token.type != TokenType.VOID:
             return self.variable_declaration()
         else:
             return self.expression_statement()
@@ -186,8 +303,7 @@ class EnhancedParser:
         init = None
         init_was_declaration = False
         if self.current_token.type != TokenType.SEMICOLON:
-            if self.current_token.type in [TokenType.INT, TokenType.FLOAT, 
-                                           TokenType.CHAR, TokenType.STRING, TokenType.BOOL]:
+            if self.current_token.type in self.type_specifiers and self.current_token.type != TokenType.VOID:
                 init = self.variable_declaration()
                 init_was_declaration = True
             else:
@@ -243,9 +359,9 @@ class EnhancedParser:
         return ASTNode('continue_statement', line=line, column=col)
     
     def variable_declaration(self) -> ASTNode:
-        var_type = self.current_token.value
-        line, col = self.current_token.line, self.current_token.column
-        self.eat(self.current_token.type)
+        type_spec = self.parse_type_specifier()
+        var_type = self.type_to_text(type_spec)
+        line, col = type_spec['line'], type_spec['column']
         
         declarations = []
         
@@ -410,6 +526,22 @@ class EnhancedParser:
             self.eat(TokenType.MINUS)
             return ASTNode('postfix_expression', [left], {'operator': '--'}, line, col)
         
+        while True:
+            if self.current_token.type == TokenType.DOT:
+                line, col = self.current_token.line, self.current_token.column
+                self.eat(TokenType.DOT)
+                member = self.eat(TokenType.IDENTIFIER).value
+                left = ASTNode('member_access', [left], {'member': member}, line, col)
+                continue
+            if self.current_token.type == TokenType.LEFT_BRACKET:
+                line, col = self.current_token.line, self.current_token.column
+                self.eat(TokenType.LEFT_BRACKET)
+                index = self.expression()
+                self.eat(TokenType.RIGHT_BRACKET)
+                left = ASTNode('array_access', [left, index], line=line, column=col)
+                continue
+            break
+
         if self.current_token.type == TokenType.LEFT_PAREN:
             line, col = self.current_token.line, self.current_token.column
             self.eat(TokenType.LEFT_PAREN)
@@ -418,14 +550,6 @@ class EnhancedParser:
                 args = self.argument_list()
             self.eat(TokenType.RIGHT_PAREN)
             return ASTNode('function_call', [left] + args, line=line, column=col)
-        
-        # 数组下标访问: arr[index]
-        if self.current_token.type == TokenType.LEFT_BRACKET:
-            line, col = self.current_token.line, self.current_token.column
-            self.eat(TokenType.LEFT_BRACKET)
-            index = self.expression()
-            self.eat(TokenType.RIGHT_BRACKET)
-            return ASTNode('array_access', [left, index], line=line, column=col)
         
         return left
     
