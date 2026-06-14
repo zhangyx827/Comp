@@ -139,7 +139,7 @@ class EnhancedParser:
                 if self.current_token.type == TokenType.LEFT_BRACKET:
                     self.eat(TokenType.LEFT_BRACKET)
                     if self.current_token.type == TokenType.INTEGER_LITERAL:
-                        array_size = int(self.current_token.value)
+                        array_size = self.parse_integer_literal(self.current_token.value)
                         self.eat(TokenType.INTEGER_LITERAL)
                     self.eat(TokenType.RIGHT_BRACKET)
                 field = {'name': name, 'type': self.type_to_text(type_spec)}
@@ -166,7 +166,7 @@ class EnhancedParser:
                 if self.current_token.type == TokenType.MINUS:
                     self.eat(TokenType.MINUS)
                     sign = -1
-                value = sign * int(self.eat(TokenType.INTEGER_LITERAL).value)
+                value = sign * self.parse_integer_literal(self.eat(TokenType.INTEGER_LITERAL).value)
             members.append({'name': name, 'value': value})
             next_value = value + 1
             if self.current_token.type != TokenType.COMMA:
@@ -219,7 +219,7 @@ class EnhancedParser:
         if self.current_token.type == TokenType.LEFT_BRACKET:
             self.eat(TokenType.LEFT_BRACKET)
             if self.current_token.type == TokenType.INTEGER_LITERAL:
-                array_size = int(self.current_token.value)
+                array_size = self.parse_integer_literal(self.current_token.value)
                 self.eat(TokenType.INTEGER_LITERAL)
             self.eat(TokenType.RIGHT_BRACKET)
         
@@ -382,7 +382,7 @@ class EnhancedParser:
             if self.current_token.type == TokenType.LEFT_BRACKET:
                 self.eat(TokenType.LEFT_BRACKET)
                 if self.current_token.type == TokenType.INTEGER_LITERAL:
-                    array_size = int(self.current_token.value)
+                    array_size = self.parse_integer_literal(self.current_token.value)
                     self.eat(TokenType.INTEGER_LITERAL)
                 self.eat(TokenType.RIGHT_BRACKET)
             
@@ -567,7 +567,7 @@ class EnhancedParser:
             name = self.eat(TokenType.IDENTIFIER).value
             return ASTNode('identifier', [], {'name': name}, line, col)
         elif self.current_token.type == TokenType.INTEGER_LITERAL:
-            value = int(self.eat(TokenType.INTEGER_LITERAL).value)
+            value = self.parse_integer_literal(self.eat(TokenType.INTEGER_LITERAL).value)
             return ASTNode('integer_literal', [], {'value': value}, line, col)
         elif self.current_token.type == TokenType.FLOAT_LITERAL:
             value = float(self.eat(TokenType.FLOAT_LITERAL).value)
@@ -591,3 +591,14 @@ class EnhancedParser:
             return expr
         else:
             raise SyntaxError(f"意外的token: {self.current_token.type}", line, col)
+
+    @staticmethod
+    def parse_integer_literal(value: str) -> int:
+        text = value.strip()
+        if text.startswith(('0x', '0X')):
+            return int(text, 16)
+        if text.startswith(('0b', '0B')):
+            return int(text, 2)
+        if text.startswith(('0o', '0O')):
+            return int(text, 8)
+        return int(text, 10)

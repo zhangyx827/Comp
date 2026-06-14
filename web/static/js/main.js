@@ -497,30 +497,183 @@ int main() {
 
         function displaySemanticResult(result) {
             const container = document.getElementById('content-semantic');
-            let html = '<h4 style="margin-bottom: 1rem; color: var(--accent-primary);">符号表</h4>';
-            
-            result.global_symbols.forEach(symbol => {
-                html += `
-                    <div class="symbol-item">
-                        <div class="symbol-name">${symbol.name}</div>
-                        <div class="symbol-info">
-                            <span class="symbol-type">类型: ${symbol.type}</span>
-                            ${symbol.return_type ? `<span class="symbol-data-type">返回: ${symbol.return_type}</span>` : ''}
-                            ${symbol.data_type ? `<span class="symbol-data-type">数据类型: ${symbol.data_type}</span>` : ''}
+            const globalSymbols = Array.isArray(result.global_symbols) ? result.global_symbols : [];
+            const localSymbols = Array.isArray(result.local_symbols) ? result.local_symbols : [];
+            const symbolsUsed = Array.isArray(result.symbols_used) ? result.symbols_used : [];
+            const warnings = Array.isArray(result.warnings) ? result.warnings : [];
+            const errors = Array.isArray(result.errors) ? result.errors : [];
+            const enumConstants = result.enum_constants && typeof result.enum_constants === 'object'
+                ? result.enum_constants
+                : {};
+            const functionCount = globalSymbols.filter(sym => sym.type === 'function').length;
+            const variableCount = globalSymbols.filter(sym => sym.type === 'variable').length;
+            const enumCount = Object.keys(enumConstants).length;
+            const success = !!result.success && errors.length === 0;
+
+            let html = `
+                <div class="semantic-dashboard">
+                    <div class="semantic-hero ${success ? 'is-success' : 'is-warning'}">
+                        <div class="semantic-hero-copy">
+                            <div class="semantic-kicker">Semantic Analysis</div>
+                            <h4 class="semantic-title">${success ? '语义检查通过' : '存在语义问题'}</h4>
+                            <p class="semantic-description">
+                                通过符号表、作用域和使用关系展示语义分析结果，帮助定位声明、引用和类型检查状态。
+                            </p>
+                        </div>
+                        <div class="semantic-hero-badges">
+                            <span class="semantic-badge">${globalSymbols.length} 个全局符号</span>
+                            <span class="semantic-badge">${localSymbols.length} 个局部符号</span>
+                            <span class="semantic-badge">${symbolsUsed.length} 次标识符引用</span>
                         </div>
                     </div>
-                `;
-            });
-            
-            if (result.warnings && result.warnings.length > 0) {
-                html += '<h4 style="margin: 1.5rem 0 1rem; color: var(--warning);">警告</h4>';
-                result.warnings.forEach(w => {
-                    const msg = typeof w === 'string' ? w : (w.message || JSON.stringify(w));
-                    html += `<div class="warning-item">${escapeHtml(msg)}</div>`;
-                });
-            }
-            
+
+                    <div class="semantic-metrics">
+                        <div class="semantic-metric-card">
+                            <div class="semantic-metric-value">${functionCount}</div>
+                            <div class="semantic-metric-label">函数</div>
+                        </div>
+                        <div class="semantic-metric-card">
+                            <div class="semantic-metric-value">${variableCount}</div>
+                            <div class="semantic-metric-label">变量</div>
+                        </div>
+                        <div class="semantic-metric-card">
+                            <div class="semantic-metric-value">${enumCount}</div>
+                            <div class="semantic-metric-label">枚举常量</div>
+                        </div>
+                        <div class="semantic-metric-card">
+                            <div class="semantic-metric-value">${warnings.length}</div>
+                            <div class="semantic-metric-label">警告</div>
+                        </div>
+                    </div>
+
+                    <div class="semantic-grid">
+                        <section class="semantic-panel">
+                            <div class="semantic-panel-header">
+                                <h5>全局作用域</h5>
+                                <span>${globalSymbols.length} 项</span>
+                            </div>
+                            ${renderSemanticSymbolList(globalSymbols, 'global')}
+                        </section>
+
+                        <section class="semantic-panel">
+                            <div class="semantic-panel-header">
+                                <h5>局部作用域</h5>
+                                <span>${localSymbols.length} 项</span>
+                            </div>
+                            ${renderSemanticSymbolList(localSymbols, 'local')}
+                        </section>
+                    </div>
+
+                    <div class="semantic-grid semantic-grid-wide">
+                        <section class="semantic-panel">
+                            <div class="semantic-panel-header">
+                                <h5>标识符使用关系</h5>
+                                <span>${symbolsUsed.length} 次引用</span>
+                            </div>
+                            ${renderSemanticUsageList(symbolsUsed)}
+                        </section>
+
+                        <section class="semantic-panel">
+                            <div class="semantic-panel-header">
+                                <h5>枚举常量</h5>
+                                <span>${enumCount} 项</span>
+                            </div>
+                            ${renderSemanticEnumList(enumConstants)}
+                        </section>
+                    </div>
+
+                    ${renderSemanticMessages('错误', errors, 'semantic-errors')}
+                    ${renderSemanticMessages('警告', warnings, 'semantic-warnings')}
+                </div>
+            `;
+
             container.innerHTML = html;
+        }
+
+        function renderSemanticSymbolList(symbols, scope) {
+            if (!symbols.length) {
+                return '<div class="semantic-empty">暂无符号</div>';
+            }
+
+            return `
+                <div class="symbol-list semantic-symbol-list">
+                    ${symbols.map(symbol => {
+                        const kind = symbol.type || 'unknown';
+                        const badgeClass = kind === 'function' ? 'is-function' : 'is-variable';
+                        const details = [];
+                        if (symbol.return_type) details.push(`返回 ${escapeHtml(symbol.return_type)}`);
+                        if (symbol.data_type) details.push(`类型 ${escapeHtml(symbol.data_type)}`);
+                        if (symbol.storage_slots != null) details.push(`槽位 ${escapeHtml(String(symbol.storage_slots))}`);
+                        if (symbol.line != null) details.push(`行 ${escapeHtml(String(symbol.line))}`);
+
+                        return `
+                            <div class="symbol-item semantic-symbol-item semantic-symbol-${scope}">
+                                <div class="symbol-top">
+                                    <div class="symbol-name">${escapeHtml(symbol.name || 'unnamed')}</div>
+                                    <span class="symbol-kind ${badgeClass}">${escapeHtml(kind)}</span>
+                                </div>
+                                <div class="symbol-info semantic-symbol-info">
+                                    ${details.map(item => `<span class="symbol-chip">${item}</span>`).join('')}
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+
+        function renderSemanticUsageList(symbolsUsed) {
+            if (!symbolsUsed.length) {
+                return '<div class="semantic-empty">没有捕获到标识符引用</div>';
+            }
+
+            return `
+                <div class="semantic-usage-list">
+                    ${symbolsUsed.map(item => `
+                        <div class="semantic-usage-item">
+                            <span class="semantic-usage-name">${escapeHtml(item.name || 'unknown')}</span>
+                            <span class="semantic-usage-meta">${escapeHtml(item.type || 'unknown')}</span>
+                            <span class="semantic-usage-line">行 ${escapeHtml(String(item.line ?? '?'))}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function renderSemanticEnumList(enumConstants) {
+            const entries = Object.entries(enumConstants || {});
+            if (!entries.length) {
+                return '<div class="semantic-empty">没有枚举常量</div>';
+            }
+
+            return `
+                <div class="semantic-enum-list">
+                    ${entries.map(([name, value]) => `
+                        <div class="semantic-enum-item">
+                            <span class="semantic-enum-name">${escapeHtml(name)}</span>
+                            <span class="semantic-enum-value">${escapeHtml(String(value))}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function renderSemanticMessages(title, messages, variant) {
+            if (!messages.length) return '';
+            return `
+                <section class="semantic-panel ${variant}">
+                    <div class="semantic-panel-header">
+                        <h5>${title}</h5>
+                        <span>${messages.length} 条</span>
+                    </div>
+                    <div class="semantic-message-list">
+                        ${messages.map(msg => {
+                            const text = typeof msg === 'string' ? msg : (msg.message || JSON.stringify(msg));
+                            return `<div class="semantic-message-item">${escapeHtml(text)}</div>`;
+                        }).join('')}
+                    </div>
+                </section>
+            `;
         }
 
         function displayCodeResult(result) {

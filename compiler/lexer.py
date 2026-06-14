@@ -27,7 +27,7 @@ class EnhancedLexer:
             ('COMMENT', r'//.*'),
             ('MULTILINE_COMMENT', r'/\*[\s\S]*?\*/'),
             ('FLOAT_LITERAL', r'\d+\.\d+'),
-            ('INTEGER_LITERAL', r'\d+'),
+            ('INTEGER_LITERAL', r'0[xX][0-9a-fA-F]+|0[bB][01]+|0[oO][0-7]+|\d+'),
             ('STRING_LITERAL', r'"([^"\\]|\\.)*"'),
             ('CHAR_LITERAL', r"'([^'\\]|\\.)'"),
             ('IDENTIFIER', r'[a-zA-Z_][a-zA-Z0-9_]*'),

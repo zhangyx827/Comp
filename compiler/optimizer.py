@@ -73,6 +73,19 @@ class Optimizer:
         node.children = [self.constant_folding(c) for c in node.children]
         return node
 
+    @staticmethod
+    def _parse_int(value: Any) -> int:
+        if isinstance(value, int):
+            return value
+        text = str(value).strip()
+        if text.startswith(('0x', '0X')):
+            return int(text, 16)
+        if text.startswith(('0b', '0B')):
+            return int(text, 2)
+        if text.startswith(('0o', '0O')):
+            return int(text, 8)
+        return int(text, 10)
+
     def dead_code_elimination(self, node: ASTNode) -> ASTNode:
         return node
 
@@ -557,13 +570,13 @@ class TACOptimizer:
         right: Optional[_DAGNode],
     ) -> Optional[str]:
         if op in self.UNARY_OPS and left.const_value is not None:
-            value = self._evaluate_unary(op, int(left.const_value))
+            value = self._evaluate_unary(op, self._parse_int(left.const_value))
             self.optimizations_applied.append(
                 f"TAC DAG 常量合并: {op} {left.const_value} -> {value}"
             )
             return str(value)
         if op in self.BINARY_OPS and left.const_value is not None and right and right.const_value is not None:
-            value = self._evaluate_binary(op, int(left.const_value), int(right.const_value))
+            value = self._evaluate_binary(op, self._parse_int(left.const_value), self._parse_int(right.const_value))
             if value is None:
                 return None
             self.optimizations_applied.append(
@@ -1067,10 +1080,32 @@ class TACOptimizer:
     def _copy_instruction(self, instruction: TACInstruction) -> TACInstruction:
         return TACInstruction(instruction.op, instruction.arg1, instruction.arg2, instruction.result)
 
+    @staticmethod
+    def _parse_int(value: Any) -> int:
+        if isinstance(value, int):
+            return value
+
+        text = str(value).strip()
+        sign = 1
+        if text.startswith("-"):
+            sign = -1
+            text = text[1:]
+
+        if text.startswith(("0x", "0X")):
+            return sign * int(text, 16)
+        if text.startswith(("0b", "0B")):
+            return sign * int(text, 2)
+        if text.startswith(("0o", "0O")):
+            return sign * int(text, 8)
+        return sign * int(text, 10)
+
     def _as_int(self, value: Any) -> Optional[int]:
         if not self._is_immediate(value):
             return None
-        return int(str(value))
+        try:
+            return self._parse_int(value)
+        except ValueError:
+            return None
 
     def _is_zero(self, value: Any) -> bool:
         return self._as_int(value) == 0
@@ -1081,7 +1116,13 @@ class TACOptimizer:
     def _is_immediate(self, value: Any) -> bool:
         if value is None:
             return False
-        return str(value).lstrip("-").isdigit()
+        text = str(value).lstrip("-")
+        return (
+            text.isdigit()
+            or text.startswith(('0x', '0X'))
+            or text.startswith(('0b', '0B'))
+            or text.startswith(('0o', '0O'))
+        )
 
     def _is_symbol(self, value: Any) -> bool:
         return isinstance(value, str) and not self._is_immediate(value)
